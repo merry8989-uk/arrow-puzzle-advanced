@@ -38,7 +38,8 @@
     black: { name: "Black arrows", glyph: "\u2B95", board: "auto", render: "borderless", color: "auto", pattern: "plain" },
     long: { name: "Long arrows", glyph: "\u27A1", board: "auto", render: "long", color: "auto", pattern: "fine" },
     neon: { name: "Neon arrows", glyph: "\u2B95", board: "dark", render: "borderless", color: "#66e0ff", pattern: "neon" },
-    curly: { name: "Curly arrows", glyph: "\u219D", board: "auto", render: "curly", color: "auto", pattern: "swirl" }
+    curly: { name: "Curly arrows", glyph: "\u219D", board: "auto", render: "curly", color: "auto", pattern: "swirl" },
+    maze: { name: "Maze arrows", glyph: "\u21B3", board: "light", render: "long", color: "#8a6a4a", pattern: "plain" }
   };
   var MODES = [
     { id: "classic_arrow", name: "Classic Arrows", mech: "classic", theme: "arrow", desc: "Tap an arrow to launch it off the board when its path is clear." },
@@ -58,7 +59,9 @@
     { id: "curly", name: "Curly Arrows", mech: "classic", theme: "curly", desc: "Long curly arrows that clear when their lane opens." },
     { id: "curly_escape", name: "Curly Escape", mech: "escape", theme: "curly", desc: "Long curly arrows that slide one step per tap." },
     { id: "mega_curly", name: "Mega Curly", mech: "mega", theme: "curly", desc: "Giant boards with hundreds of long curly arrows." },
-    { id: "mega_long", name: "Mega Long", mech: "mega", theme: "long", desc: "Giant boards with hundreds of long arrows." }
+    { id: "mega_long", name: "Mega Long", mech: "mega", theme: "long", desc: "Giant boards with hundreds of long arrows." },
+    { id: "maze", name: "Maze Arrows", mech: "classic", theme: "maze", desc: "A dense maze of thin long arrows on a warm board." },
+    { id: "maze_escape", name: "Maze Escape", mech: "escape", theme: "maze", desc: "Maze-style long arrows that slide one step per tap." }
   ];
 
   // Hard challenge packs, drawn from the toughest level ranges (all offline).
@@ -464,13 +467,14 @@
       el.style.left = cellX(w[1]) + "px"; el.style.top = cellY(w[0]) + "px"; board.appendChild(el);
     });
     state.occ = buildOcc();
+    if (isLongTheme(m.theme)) computeLongLengths();
     state.arrows.forEach(function (a) { createArrowEl(a, m.theme); });
   }
   /* ---------- long multi-cell arrows ----------
      Long / Curly / Black draw a single long arrow that runs through the open
      lane ahead of the tile and ends in an arrowhead, instead of a small glyph
      boxed in one cell. Purely visual: the rules are unchanged. */
-  var LONG_THEMES = { long: 1, curly: 1, black: 1 };
+  var LONG_THEMES = { long: 1, curly: 1, black: 1, maze: 1 };
   function isLongTheme(t) { return !!LONG_THEMES[t]; }
   function buildOcc() {
     var s = {};
@@ -506,10 +510,36 @@
       " L" + (fx - ux * head * 1.7 - px * head) + " " + (fy - uy * head * 1.7 - py * head) + " Z' fill='" + color + "'/>";
     return shaft + headPath;
   }
+  // Assign each long arrow a fixed length ONCE per level. Spans are claimed as we
+  // go, so a lane never runs through a cell another arrow's lane already uses --
+  // arrows can never overlap or cross each other.
+  function computeLongLengths() {
+    var lv = state.current.level, occ = {}, claimed = {};
+    state.arrows.forEach(function (a) { occ[a.r + "," + a.c] = 1; });
+    (lv.walls || []).forEach(function (w) { occ[w[0] + "," + w[1]] = 1; });
+    state.arrows.slice().sort(function (a, b) { return a.id - b.id; }).forEach(function (a) {
+      var dr = DIRS[a.d][0], dc = DIRS[a.d][1], L = 1, rr = a.r + dr, cc = a.c + dc;
+      var cells = [a.r + "," + a.c];
+      while (rr >= 0 && rr < lv.rows && cc >= 0 && cc < lv.cols && !occ[rr + "," + cc] && !claimed[rr + "," + cc]) {
+        cells.push(rr + "," + cc); L++; rr += dr; cc += dc;
+      }
+      cells.forEach(function (k) { claimed[k] = 1; });
+      a.len = L;
+    });
+  }
+  function cellsToEdge(lv, r, c, d) {
+    var dr = DIRS[d][0], dc = DIRS[d][1], n = 1, rr = r + dr, cc = c + dc;
+    while (rr >= 0 && rr < lv.rows && cc >= 0 && cc < lv.cols) { n++; rr += dr; cc += dc; }
+    return n;
+  }
   function longArrowInner(a, occ) {
     var lv = state.current.level, S = state.geo.S, gap = state.geo.gap, step = S + gap;
     var th = THEMES[modeById(state.current.modeId).theme] || THEMES.long;
-    var L = arrowSpanCells(lv, occ, a.r, a.c, a.d), dr = DIRS[a.d][0], dc = DIRS[a.d][1];
+    // Length is FIXED for the level (assigned once when the board is built) and
+    // never grows when other tiles are cleared; it is only trimmed to the board
+    // edge so it cannot overhang.
+    var L = Math.max(1, Math.min(a.len || arrowSpanCells(lv, occ, a.r, a.c, a.d), cellsToEdge(lv, a.r, a.c, a.d)));
+    var dr = DIRS[a.d][0], dc = DIRS[a.d][1];
     var span = L * S + (L - 1) * gap, w, h, ox = 0, oy = 0;
     if (dr === 0) { w = span; h = S; ox = (dc < 0) ? -(L - 1) * step : 0; }
     else if (dc === 0) { w = S; h = span; oy = (dr < 0) ? -(L - 1) * step : 0; }
@@ -579,7 +609,7 @@
     }
   }
 
-  function snapshot() { return { arrows: state.arrows.map(function (a) { return { id: a.id, r: a.r, c: a.c, d: a.d, need: a.need }; }), moves: state.moves, hintsUsed: state.hintsUsed, nextId: state.nextId }; }
+  function snapshot() { return { arrows: state.arrows.map(function (a) { return { id: a.id, r: a.r, c: a.c, d: a.d, need: a.need, len: a.len }; }), moves: state.moves, hintsUsed: state.hintsUsed, nextId: state.nextId }; }
 
   function onTap(id) {
     if (state.locked || state.swallow) return;
@@ -603,7 +633,6 @@
     } else {
       sfxClear(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d);
     }
-    refreshLongArrows({ r: lv0r, c: lv0c });
     updateStats();
     if (state.arrows.length === 0) setTimeout(winLevel, 430);
   }
@@ -616,7 +645,7 @@
     if (!state.history.length) { toast("Nothing to undo"); return; }
     var s = state.history.pop();
     state.arrows = s.arrows; state.moves = s.moves; state.hintsUsed = s.hintsUsed; state.nextId = s.nextId;
-    rebuildArrows(); refreshLongArrows(null); updateStats();
+    rebuildArrows(); updateStats();
   }
   function restart() { if (state.current) playLevel(state.current.modeId, state.current.index, state.current.levelsArr, state.current.ctx); }
 

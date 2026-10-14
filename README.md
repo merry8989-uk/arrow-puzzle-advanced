@@ -40,6 +40,8 @@ A **mechanic** defines the rules; a **theme** defines how tiles look. A **mode**
 | **Curly Escape** | Escape | Long curly arrows that slide |
 | **Mega Curly** | Classic | Giant boards, hundreds of curly arrows |
 | **Mega Long** | Classic | Giant boards, hundreds of long arrows |
+| **Maze Arrows** | Classic | Dense maze of thin long arrows on a warm board |
+| **Maze Escape** | Escape | Maze-style long arrows that slide |
 
 ### Mechanics
 - **Classic** — tap a tile to launch it off the board; it only leaves if the whole lane to the edge is clear.
