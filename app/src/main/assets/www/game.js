@@ -330,7 +330,7 @@
     state.arrows = lv.arrows.map(function (a, i) { return { id: i + 1, r: a[0], c: a[1], d: a[2], need: a.length > 3 ? a[3] : 1 }; });
     state.nextId = lv.arrows.length + 1;
     state.history = []; state.moves = 0; state.hintsUsed = 0; state.locked = false;
-    state.lives = MAX_LIVES; updateLives();
+    state.maxLives = livesForLevel(lv.id || (index + 1)); state.lives = state.maxLives; updateLives();
     state.startTime = Date.now(); resetZoom();
     if (state.timer) clearInterval(state.timer);
     state.timer = setInterval(function () { var s = Math.round((Date.now() - state.startTime) / 1000); var e = $("stat-time"); if (e) e.textContent = s + "s"; }, 500);
@@ -431,12 +431,15 @@
   function shake(id) { var el = state.els[id]; if (!el) return; el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
 
   function livesOn() { return !(state.progress.settings && state.progress.settings.lives === false); }
+  // Base 3 lives, +1 more for every 25 levels cleared (levels 1-25 = 3, 26-50 = 4, ...).
+  function livesForLevel(n) { return MAX_LIVES + Math.floor((Math.max(1, n) - 1) / 25); }
   function updateLives() {
     var e = $("stat-lives"); if (!e) return;
     if (!livesOn()) { e.innerHTML = "\u221E"; return; }
-    var n = Math.max(0, state.lives == null ? MAX_LIVES : state.lives);
+    var mx = state.maxLives || MAX_LIVES, n = Math.max(0, state.lives == null ? mx : state.lives);
+    if (mx > 6) { e.innerHTML = "<span style='color:#ff5b6e'>\u2665 " + n + "</span>"; return; }
     e.innerHTML = "<span style='color:#ff5b6e'>" + "\u2665".repeat(n) + "</span>" +
-      "<span style='color:#5a6478'>" + "\u2665".repeat(Math.max(0, MAX_LIVES - n)) + "</span>";
+      "<span style='color:#5a6478'>" + "\u2665".repeat(Math.max(0, mx - n)) + "</span>";
   }
   function loseLife(id) {
     shake(id);
@@ -663,7 +666,7 @@
     var st = $("sound-toggle");
     if (st) st.textContent = "Fireworks sound: " + ((state.progress.settings && state.progress.settings.sound === false) ? "Off" : "On");
     var lt = $("lives-toggle");
-    if (lt) lt.textContent = "Lives: " + (livesOn() ? "3 per level" : "Relaxed (no limit)");
+    if (lt) lt.textContent = "Lives: " + (livesOn() ? "3, +1 every 25 levels" : "Relaxed (no limit)");
     var ci = $("coins-info");
     if (ci) ci.textContent = "You have " + (state.progress.coins || 0).toLocaleString("en-IN") + " coins. Earn up to 100 per puzzle; a hint costs 2000.";
   }
@@ -812,7 +815,7 @@
       playLevel: playLevel, playCampaign: playCampaign, playPackItem: playPackItem, playChallengeItem: playChallengeItem,
       openChallenge: openChallenge, challengeItems: challengeItems, onTap: onTap, doHint: doHint, undo: undo, restart: restart,
       showScreen: showScreen, ensureLevels: ensureLevels, hintCell: hintCell, getPack: getPack, buildPack: buildPack,
-      coinAward: coinAward, applyTheme: applyTheme, setZoom: setZoom, resetZoom: resetZoom,
+      coinAward: coinAward, applyTheme: applyTheme, setZoom: setZoom, resetZoom: resetZoom, livesForLevel: livesForLevel,
       dateKey: dateKey, weekKey: weekKey, monthKey: monthKey };
   }
 
