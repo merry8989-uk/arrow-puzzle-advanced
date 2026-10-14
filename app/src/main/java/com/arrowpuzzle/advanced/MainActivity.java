@@ -2,7 +2,9 @@ package com.arrowpuzzle.advanced;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
@@ -50,12 +52,26 @@ public class MainActivity extends Activity {
         web.loadUrl("file:///android_asset/www/index.html");
     }
 
-    /** Lets the web layer close the app when back is pressed on the home screen. */
+    /** Lets the web layer close the app when back is pressed on the home screen,
+     *  and open external links (e.g. the developer's Instagram) in a browser/app. */
     private class Bridge {
         @JavascriptInterface
         public void exitApp() {
             runOnUiThread(new Runnable() {
                 @Override public void run() { finish(); }
+            });
+        }
+
+        @JavascriptInterface
+        public void openUrl(final String url) {
+            runOnUiThread(new Runnable() {
+                @Override public void run() {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+                    } catch (Exception e) {
+                        Toast.makeText(MainActivity.this, url, Toast.LENGTH_LONG).show();
+                    }
+                }
             });
         }
     }

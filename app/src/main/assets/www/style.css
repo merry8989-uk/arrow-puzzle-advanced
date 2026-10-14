@@ -109,6 +109,23 @@ html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
 .board-light{background:#f3ece0;border-color:#e0d6c4;box-shadow:inset 0 0 30px rgba(120,100,70,.12)}
 .board-light .cellbg{background:#e9dfce}
 .board-light .wall{background:#cdbfa6;border-color:#b9a98d}
+/* per-mode board textures so every mode looks different */
+.pat-grid{background-image:linear-gradient(rgba(127,127,127,.10) 1px,transparent 1px),linear-gradient(90deg,rgba(127,127,127,.10) 1px,transparent 1px);background-size:20px 20px}
+.pat-dots{background-image:radial-gradient(rgba(127,127,127,.18) 1.4px,transparent 1.6px);background-size:18px 18px}
+.pat-checker{background-image:linear-gradient(45deg,rgba(127,127,127,.09) 25%,transparent 25%,transparent 75%,rgba(127,127,127,.09) 75%),linear-gradient(45deg,rgba(127,127,127,.09) 25%,transparent 25%,transparent 75%,rgba(127,127,127,.09) 75%);background-size:22px 22px;background-position:0 0,11px 11px}
+.pat-dotgrid{background-image:radial-gradient(rgba(127,127,127,.22) 1px,transparent 1.3px);background-size:14px 14px}
+.pat-dash{background-image:repeating-linear-gradient(0deg,rgba(127,127,127,.14) 0 6px,transparent 6px 14px)}
+.pat-waves{background-image:repeating-radial-gradient(circle at 0 100%,transparent 0 7px,rgba(127,127,127,.12) 7px 8px);background-size:26px 26px}
+.pat-stripes{background-image:repeating-linear-gradient(45deg,rgba(127,127,127,.09) 0 7px,transparent 7px 15px)}
+.pat-rings{background-image:radial-gradient(circle,transparent 6px,rgba(127,127,127,.12) 7px,transparent 8px);background-size:26px 26px}
+.pat-fine{background-image:linear-gradient(rgba(127,127,127,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(127,127,127,.09) 1px,transparent 1px);background-size:12px 12px}
+.pat-swirl{background-image:repeating-radial-gradient(circle at 50% 50%,rgba(127,127,127,.10) 0 2px,transparent 2px 11px);background-size:28px 28px}
+.pat-neon{background-image:radial-gradient(rgba(102,224,255,.13) 1px,transparent 1.5px);background-size:16px 16px}
+/* mode list: active/archive headers + hide/restore pills */
+.modes-head{margin:8px 2px 10px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:800}
+.modes-head.arch{cursor:pointer;color:var(--accent);padding:12px 2px;border-top:1px solid var(--line);margin-top:14px}
+.mi-act{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 10px;margin-right:2px;white-space:nowrap}
+.mi-act[data-act="restore"]{color:var(--accent);border-color:var(--accent)}
 .zoom-ctl{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:6px;z-index:6}
 .zbtn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:18px;font-weight:800;cursor:pointer}
 .zbtn:active{transform:scale(.94)}

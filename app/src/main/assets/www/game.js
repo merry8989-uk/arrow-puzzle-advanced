@@ -23,19 +23,22 @@
     mega: { files: [["levels_mega.js", "LEVELS_MEGA"]], size: 24, sol: false, core: "classic" }
   };
   function coreOf(mech) { return (MECHANICS[mech] && MECHANICS[mech].core) || mech; }
+  // board "auto" = follow the app theme (dark theme -> dark board, white theme ->
+  // light board). colour "auto" = follow the app theme (dark -> white arrows,
+  // white -> black arrows). pattern = a per-mode board texture so modes differ.
   var THEMES = {
-    arrow: { name: "Arrows", glyph: "\u27A4", board: "dark", render: "tile" },
-    round: { name: "Round colours", glyph: "\u25CF", board: "dark", render: "tile" },
-    square: { name: "Square colours", glyph: "\u25A0", board: "dark", render: "tile" },
-    dots: { name: "Dots", glyph: "\u25CF", board: "dark", render: "tile" },
-    dotted: { name: "Dotted", glyph: "\u22EF", board: "dark", render: "tile" },
-    snake: { name: "Snake", glyph: "\u301C", board: "dark", render: "tile" },
-    fruits: { name: "Fruits", glyph: "\uD83C\uDF4E", board: "dark", render: "tile" },
-    picture: { name: "Picture", glyph: "\u2B50", board: "dark", render: "tile" },
-    black: { name: "Black arrows", glyph: "\u2B95", board: "light", render: "borderless", color: "#171717" },
-    long: { name: "Long arrows", glyph: "\u27A1", board: "light", render: "long", color: "#8a6a4a" },
-    neon: { name: "Neon arrows", glyph: "\u2B95", board: "dark", render: "borderless", color: "#66e0ff" },
-    curly: { name: "Curly arrows", glyph: "\u219D", board: "light", render: "curly", color: "#8a6a4a" }
+    arrow: { name: "Arrows", glyph: "\u27A4", board: "auto", render: "tile", pattern: "grid" },
+    round: { name: "Round colours", glyph: "\u25CF", board: "auto", render: "tile", pattern: "dots" },
+    square: { name: "Square colours", glyph: "\u25A0", board: "auto", render: "tile", pattern: "checker" },
+    dots: { name: "Dots", glyph: "\u25CF", board: "auto", render: "tile", pattern: "dotgrid" },
+    dotted: { name: "Dotted", glyph: "\u22EF", board: "auto", render: "tile", pattern: "dash" },
+    snake: { name: "Snake", glyph: "\u301C", board: "auto", render: "tile", pattern: "waves" },
+    fruits: { name: "Fruits", glyph: "\uD83C\uDF4E", board: "auto", render: "tile", pattern: "stripes" },
+    picture: { name: "Picture", glyph: "\u2B50", board: "auto", render: "tile", pattern: "rings" },
+    black: { name: "Black arrows", glyph: "\u2B95", board: "auto", render: "borderless", color: "auto", pattern: "plain" },
+    long: { name: "Long arrows", glyph: "\u27A1", board: "auto", render: "long", color: "auto", pattern: "fine" },
+    neon: { name: "Neon arrows", glyph: "\u2B95", board: "dark", render: "borderless", color: "#66e0ff", pattern: "neon" },
+    curly: { name: "Curly arrows", glyph: "\u219D", board: "auto", render: "curly", color: "auto", pattern: "swirl" }
   };
   var MODES = [
     { id: "classic_arrow", name: "Classic Arrows", mech: "classic", theme: "arrow", desc: "Tap an arrow to launch it off the board when its path is clear." },
@@ -75,7 +78,7 @@
     mode: "classic_arrow", data: {}, loading: {},
     progress: loadProgress(),
     current: null, arrows: [], nextId: 1, history: [], moves: 0, hintsUsed: 0,
-    chapter: 1, locked: false, screen: "home", els: {}, geo: { S: 40, gap: 2, pad: 8 }
+    chapter: 1, locked: false, screen: "home", els: {}, geo: { S: 40, gap: 2, pad: 8 }, showArchived: false
   };
 
   /* ---------- helpers ---------- */
@@ -98,20 +101,40 @@
   /* ---------- progress ---------- */
   function blankProgress() {
     return { modes: {}, packs: { daily: { key: "", done: {} }, weekly: { key: "", done: {} }, monthly: { key: "", done: {} } },
-             online: { packs: {}, checked: null }, coins: 0, challenges: {}, settings: { theme: "dark", sound: true, lives: true } };
+             online: { packs: {}, checked: null }, coins: 0, challenges: {}, modeMeta: {},
+             settings: { theme: "dark", sound: true, lives: true, autoArchive: true } };
   }
   function loadProgress() {
     try { var raw = localStorage.getItem("apa_progress_v2");
       if (raw) { var p = JSON.parse(raw);
         if (p && p.modes) {
           if (p.coins == null) p.coins = 0; if (!p.challenges) p.challenges = {};
-          if (!p.settings) p.settings = { theme: "dark", sound: true, lives: true };
+          if (!p.settings) p.settings = { theme: "dark", sound: true, lives: true, autoArchive: true };
           if (p.settings.lives == null) p.settings.lives = true;
+          if (p.settings.autoArchive == null) p.settings.autoArchive = true;
+          if (!p.modeMeta) p.modeMeta = {};
           return p; } } } catch (e) {}
     return blankProgress();
   }
   function saveProgress() { try { localStorage.setItem("apa_progress_v2", JSON.stringify(state.progress)); } catch (e) { toast("Storage full"); } }
   function modeProg(id) { return state.progress.modes[id] || (state.progress.modes[id] = { unlocked: 1, stars: {} }); }
+  /* ---------- mode archive ---------- */
+  function modeMeta(id) { return state.progress.modeMeta[id] || (state.progress.modeMeta[id] = { last: null, hidden: false }); }
+  function setModeMeta(id, patch) { var m = modeMeta(id); for (var k in patch) m[k] = patch[k]; saveProgress(); }
+  function touchMode(id) { var m = modeMeta(id); m.last = Date.now(); if (m.hidden) m.hidden = false; saveProgress(); }
+  // A mode is archived when the user hid it, or (auto) when it was last played
+  // more than 3 days ago, or when it has never been played at all once the user
+  // has started playing some other mode. The current mode is never archived.
+  function isArchived(id) {
+    var meta = modeMeta(id);
+    if (meta.hidden) return true;
+    if (state.progress.settings && state.progress.settings.autoArchive === false) return false;
+    if (id === state.mode) return false;
+    var playedCount = MODES.filter(function (m) { return modeMeta(m.id).last; }).length;
+    if (meta.last) return (Date.now() - meta.last) > 3 * 864e5;
+    // never-played modes are archived only once the user has settled on a couple
+    return playedCount >= 2;
+  }
 
   /* ---------- level data ---------- */
   function ensureLevels(mech, cb) {
@@ -177,20 +200,39 @@
     if (theme === "picture") return "<div class='glyph'>" + PIC[0] + "</div>";
     return "<div class='glyph' style='color:" + color + "'>" + m.glyph + "</div>";
   }
+  function modeItemEl(m, archived) {
+    var p = modeProg(m.id), size = MECHANICS[m.mech].size, solved = Object.keys(p.stars).length;
+    var el = document.createElement("div");
+    el.className = "mode-item" + (m.id === state.mode ? " sel" : "");
+    el.innerHTML = "<div class='mi-icon'>" + themeIcon(m.theme) + "</div>" +
+      "<div class='mi-text'><div class='mi-name'>" + m.name + "</div><div class='mi-desc'>" + m.desc + "</div>" +
+      "<div class='mi-tag'>" + THEMES[m.theme].name + " \u00b7 " + solved + "/" + size + " solved</div></div>" +
+      (archived ? "<div class='mi-act' data-act='restore'>Restore</div>" : "<div class='mi-act' data-act='hide'>Hide</div>") +
+      "<div class='mi-go'>\u203A</div>";
+    el.onclick = function (ev) {
+      var act = ev.target && ev.target.getAttribute && ev.target.getAttribute("data-act");
+      if (act === "hide") { setModeMeta(m.id, { hidden: true }); toast(m.name + " moved to archive"); renderModes(); return; }
+      if (act === "restore") { setModeMeta(m.id, { hidden: false, last: Date.now() }); toast(m.name + " restored"); renderModes(); return; }
+      state.mode = m.id; state.chapter = Math.ceil(Math.min(p.unlocked, size) / CHAPTER); showScreen("levels");
+    };
+    return el;
+  }
   function renderModes() {
     var box = $("mode-list"); box.innerHTML = "";
-    MODES.forEach(function (m) {
-      var p = modeProg(m.id), size = MECHANICS[m.mech].size;
-      var solved = Object.keys(p.stars).length;
-      var el = document.createElement("div");
-      el.className = "mode-item" + (m.id === state.mode ? " sel" : "");
-      el.innerHTML = "<div class='mi-icon' style='background:#0d1320;border:1px solid #243149'>" + themeIcon(m.theme) + "</div>" +
-        "<div class='mi-text'><div class='mi-name'>" + m.name + "</div><div class='mi-desc'>" + m.desc + "</div>" +
-        "<div class='mi-tag'>" + THEMES[m.theme].name + " \u00b7 " + solved + "/" + size + " solved</div></div>" +
-        "<div class='mi-go'>\u203A</div>";
-      el.onclick = function () { state.mode = m.id; state.chapter = Math.ceil(Math.min(p.unlocked, size) / CHAPTER); showScreen("levels"); };
-      box.appendChild(el);
-    });
+    var active = [], archived = [];
+    MODES.forEach(function (m) { (isArchived(m.id) ? archived : active).push(m); });
+    active.sort(function (a, b) { return (modeMeta(b.id).last || 0) - (modeMeta(a.id).last || 0); });
+    var h = document.createElement("div"); h.className = "modes-head";
+    h.textContent = "Active \u00b7 most played on top (" + active.length + ")";
+    box.appendChild(h);
+    active.forEach(function (m) { box.appendChild(modeItemEl(m, false)); });
+    if (archived.length) {
+      var h2 = document.createElement("div"); h2.className = "modes-head arch";
+      h2.innerHTML = "Archive (" + archived.length + ") " + (state.showArchived ? "\u25BE" : "\u25B8");
+      h2.onclick = function () { state.showArchived = !state.showArchived; renderModes(); };
+      box.appendChild(h2);
+      if (state.showArchived) archived.forEach(function (m) { box.appendChild(modeItemEl(m, true)); });
+    }
   }
 
   /* ---------- levels ---------- */
@@ -332,6 +374,7 @@
   function playLevel(modeId, index, levelsArr, ctx) {
     var m = modeById(modeId), lv = levelsArr[index];
     state.current = { modeId: modeId, index: index, levelsArr: levelsArr, ctx: ctx, level: lv };
+    touchMode(modeId);
     state.arrows = lv.arrows.map(function (a, i) { return { id: i + 1, r: a[0], c: a[1], d: a[2], need: a.length > 3 ? a[3] : 1 }; });
     state.nextId = lv.arrows.length + 1;
     state.history = []; state.moves = 0; state.hintsUsed = 0; state.locked = false;
@@ -367,20 +410,23 @@
   }
   function cellX(c) { return state.geo.pad + c * (state.geo.S + state.geo.gap); }
   function cellY(r) { return state.geo.pad + r * (state.geo.S + state.geo.gap); }
+  // Arrow glyph colour follows the app theme: dark theme -> white, white theme -> dark.
+  function arrowColor(th) { return (th.color && th.color !== "auto") ? th.color : (resolvedTheme() === "light" ? "#14181f" : "#f3f6fb"); }
+  function cueFill() { return resolvedTheme() === "light" ? "rgba(16,20,28,.85)" : "rgba(250,252,255,.94)"; }
   function tileInner(themeId, d, need) {
-    var th = THEMES[themeId] || THEMES.arrow, c = DIR_COLOR[d], ang = DIR_ANGLE[d];
-    var cue = "<svg class='cue' viewBox='0 0 24 24' style='transform:rotate(" + ang + "deg)'><path d='M12 2.4 L22 14.2 L15.4 14.2 L15.4 21.6 L8.6 21.6 L8.6 14.2 L2 14.2 Z' fill='rgba(10,14,22,.82)'/></svg>";
+    var th = THEMES[themeId] || THEMES.arrow, c = DIR_COLOR[d], ang = DIR_ANGLE[d], ac = arrowColor(th), cf = cueFill();
+    var cue = "<svg class='cue' viewBox='0 0 24 24' style='transform:rotate(" + ang + "deg)'><path d='M12 2.4 L22 14.2 L15.4 14.2 L15.4 21.6 L8.6 21.6 L8.6 14.2 L2 14.2 Z' fill='" + cf + "'/></svg>";
     var html;
     if (th.render === "borderless") {
-      html = "<svg class='garrow' viewBox='0 0 24 24' style='transform:rotate(" + ang + "deg)'><path d='M12 1.6 L22.6 12.8 L16.7 12.8 L16.7 22.4 L7.3 22.4 L7.3 12.8 L1.4 12.8 Z' fill='" + th.color + "'/></svg>";
+      html = "<svg class='garrow' viewBox='0 0 24 24' style='transform:rotate(" + ang + "deg)'><path d='M12 1.6 L22.6 12.8 L16.7 12.8 L16.7 22.4 L7.3 22.4 L7.3 12.8 L1.4 12.8 Z' fill='" + ac + "'/></svg>";
     } else if (th.render === "long") {
       html = "<svg class='glong' viewBox='0 0 24 24' style='transform:rotate(" + ang + "deg)'>" +
-        "<line x1='12' y1='22.6' x2='12' y2='8' stroke='" + th.color + "' stroke-width='2.9' stroke-linecap='round'/>" +
-        "<path d='M12 1 L18.6 10.2 L5.4 10.2 Z' fill='" + th.color + "'/></svg>";
+        "<line x1='12' y1='22.6' x2='12' y2='8' stroke='" + ac + "' stroke-width='2.9' stroke-linecap='round'/>" +
+        "<path d='M12 1 L18.6 10.2 L5.4 10.2 Z' fill='" + ac + "'/></svg>";
     } else if (th.render === "curly") {
       html = "<svg class='glong' viewBox='0 0 24 24' style='transform:rotate(" + ang + "deg)'>" +
-        "<path d='M12 22.6 C 4 21 4 13.6 12 13.4 C 19.6 13.2 19.6 7.6 12.4 7.8' fill='none' stroke='" + th.color + "' stroke-width='2.7' stroke-linecap='round'/>" +
-        "<path d='M12.6 1.2 L18.8 9.8 L6.4 9.8 Z' fill='" + th.color + "'/></svg>";
+        "<path d='M12 22.6 C 4 21 4 13.6 12 13.4 C 19.6 13.2 19.6 7.6 12.4 7.8' fill='none' stroke='" + ac + "' stroke-width='2.7' stroke-linecap='round'/>" +
+        "<path d='M12.6 1.2 L18.8 9.8 L6.4 9.8 Z' fill='" + ac + "'/></svg>";
     } else if (themeId === "fruits") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + FRUIT[d] + "</div>" + cue;
     else if (themeId === "picture") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + PIC[d] + "</div>" + cue;
     else if (themeId === "dotted") html = "<div class='body' style='--c:" + c + "'></div>" + cue;
@@ -395,7 +441,9 @@
     var H = 2 * state.geo.pad + R * state.geo.S + (R - 1) * state.geo.gap;
     board.style.width = W + "px"; board.style.height = H + "px";
     board.style.setProperty("--s", state.geo.S + "px");
-    board.className = "board board-" + ((THEMES[m.theme] && THEMES[m.theme].board) || "dark");
+    var _th = THEMES[m.theme] || THEMES.arrow;
+    var _pal = (_th.board && _th.board !== "auto") ? _th.board : resolvedTheme();
+    board.className = "board board-" + _pal + " pat-" + (_th.pattern || "grid");
     board.innerHTML = ""; state.els = {};
     board.style.backgroundImage = ""; board.style.backgroundSize = ""; board.style.backgroundPosition = "";
     if (R * Cc <= 1200) {
@@ -479,18 +527,18 @@
     var arr = state.arrows.map(function (a) { return [a.r, a.c, a.d, a.need]; });
     var tile = state.arrows[idx];
     var res = C.applyMove(mech, lv.rows, lv.cols, arr, lv.walls, idx);
-    if (!res) { loseLife(id); return; }
+    if (!res) { sfxWrong(); loseLife(id); return; }
     state.history.push(snapshot());
     state.moves++;
     if (mech === "escape") {
       var m = C.escapeMoveFor(lv.rows, lv.cols, arr, lv.walls, idx);
-      if (m.exit) { state.arrows.splice(idx, 1); flyOut(tile.id, tile.d); }
-      else { tile.r += DIRS[tile.d][0]; tile.c += DIRS[tile.d][1]; positionArrow(tile); }
+      if (m.exit) { sfxEscape(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d); }
+      else { sfxSlide(); tile.r += DIRS[tile.d][0]; tile.c += DIRS[tile.d][1]; positionArrow(tile); }
     } else if (mech === "multi") {
-      if (tile.need > 1) { tile.need -= 1; updateNeed(tile); }
-      else { state.arrows.splice(idx, 1); flyOut(tile.id, tile.d); }
+      if (tile.need > 1) { sfxTick(); tile.need -= 1; updateNeed(tile); }
+      else { sfxClear(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d); }
     } else {
-      state.arrows.splice(idx, 1); flyOut(tile.id, tile.d);
+      sfxClear(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d);
     }
     updateStats();
     if (state.arrows.length === 0) setTimeout(winLevel, 430);
@@ -679,11 +727,13 @@
     var th = (state.progress.settings && state.progress.settings.theme) || "dark";
     document.querySelectorAll("#theme-seg .seg-btn").forEach(function (b) { b.classList.toggle("sel", b.getAttribute("data-theme") === th); });
     var st = $("sound-toggle");
-    if (st) st.textContent = "Fireworks sound: " + ((state.progress.settings && state.progress.settings.sound === false) ? "Off" : "On");
+    if (st) st.textContent = "Sound effects: " + ((state.progress.settings && state.progress.settings.sound === false) ? "Off" : "On");
     var lt = $("lives-toggle");
     if (lt) lt.textContent = "Lives: " + (livesOn() ? "3, +1 every 25 levels" : "Relaxed (no limit)");
     var ci = $("coins-info");
     if (ci) ci.textContent = "You have " + (state.progress.coins || 0).toLocaleString("en-IN") + " coins. Earn up to 100 per puzzle; a hint costs 2000.";
+    var aa = $("autoarch-toggle");
+    if (aa) aa.textContent = "Auto-archive unused modes: " + ((state.progress.settings && state.progress.settings.autoArchive !== false) ? "On (3 days)" : "Off");
   }
 
   /* ---------- app theme ---------- */
@@ -762,6 +812,39 @@
       } else { cv.style.display = "none"; ctx.clearRect(0, 0, cv.width, cv.height); }
     })(t0);
   }
+  /* ---------- game sound effects (synthesised, offline) ---------- */
+  function actx() {
+    try { var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+      state.actx = state.actx || new AC(); if (state.actx.state === "suspended") state.actx.resume(); return state.actx; } catch (e) { return null; }
+  }
+  function soundOn() { return !(state.progress.settings && state.progress.settings.sound === false); }
+  function tone(freq, dur, type, gain, toFreq) {
+    var a = actx(); if (!a) return;
+    var o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
+    o.type = type || "sine"; o.frequency.setValueAtTime(freq, t);
+    if (toFreq) o.frequency.exponentialRampToValueAtTime(toFreq, t + dur);
+    g.gain.setValueAtTime(gain || 0.05, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + dur + 0.03);
+  }
+  function swoosh(dur, freq, q, gain) {
+    var a = actx(); if (!a) return;
+    var n = Math.floor(a.sampleRate * dur), buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+    for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2);
+    var s = a.createBufferSource(); s.buffer = buf;
+    var f = a.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = freq; f.Q.value = q || 0.8;
+    var g = a.createGain(); g.gain.value = gain || 0.10;
+    s.connect(f); f.connect(g); g.connect(a.destination); s.start();
+  }
+  // Tap/clear: a bright two-note pop. Multi tick: a soft click.
+  function sfxClear() { if (!soundOn()) return; tone(680, 0.08, "triangle", 0.07); tone(1020, 0.12, "sine", 0.05); }
+  function sfxTick() { if (!soundOn()) return; tone(1250, 0.035, "square", 0.025); }
+  // Slide: a short filtered swish. Escape: a longer swish that rises, then a soft pop.
+  function sfxSlide() { if (!soundOn()) return; swoosh(0.16, 850, 0.7, 0.10); }
+  function sfxEscape() { if (!soundOn()) return; swoosh(0.24, 1700, 1.0, 0.12); tone(480, 0.14, "sine", 0.05, 900); }
+  // Wrong tap: a low thud.
+  function sfxWrong() { if (!soundOn()) return; tone(150, 0.16, "sawtooth", 0.05); swoosh(0.10, 320, 0.6, 0.06); }
+
   function firecracker() {
     if (state.progress.settings && state.progress.settings.sound === false) return;
     try {
@@ -797,18 +880,33 @@
     document.querySelectorAll("#theme-seg .seg-btn").forEach(function (b) {
       b.onclick = function () {
         state.progress.settings.theme = b.getAttribute("data-theme");
-        saveProgress(); applyTheme(); renderSettings(); toast("Theme: " + b.textContent);
+        saveProgress(); applyTheme(); if (state.current) buildBoard(); renderSettings(); toast("Theme: " + b.textContent);
       };
     });
     $("sound-toggle").onclick = function () {
       var cur = state.progress.settings.sound !== false;
       state.progress.settings.sound = !cur; saveProgress(); renderSettings();
-      toast("Fireworks sound " + (!cur ? "on" : "off"));
+      toast("Sound effects " + (!cur ? "on" : "off"));
     };
     $("lives-toggle").onclick = function () {
       var cur = livesOn();
       state.progress.settings.lives = !cur; saveProgress(); renderSettings(); updateLives();
       toast("Lives " + (!cur ? "on \u2014 3 per level" : "off \u2014 relaxed"));
+    };
+    $("autoarch-toggle").onclick = function () {
+      var cur = !(state.progress.settings.autoArchive === false);
+      state.progress.settings.autoArchive = !cur; saveProgress(); renderSettings();
+      toast("Auto-archive " + (!cur ? "on" : "off"));
+    };
+    $("btn-ig").onclick = function () {
+      var url = "https://instagram.com/osintgram_io";
+      try { if (window.Android && Android.openUrl) { Android.openUrl(url); return; } } catch (e) {}
+      window.open(url, "_blank");
+    };
+    $("btn-copy-ig").onclick = function () {
+      var t = "@osintgram_io";
+      try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t); toast("Copied " + t); return; } } catch (e) {}
+      toast(t);
     };
     document.querySelectorAll("[data-nav]").forEach(function (b) { b.onclick = function () { showScreen(b.getAttribute("data-nav")); }; });
     $("chap-prev").onclick = function () { if (state.chapter > 1) { state.chapter--; renderLevels(); } };
@@ -838,6 +936,7 @@
       openChallenge: openChallenge, challengeItems: challengeItems, onTap: onTap, doHint: doHint, undo: undo, restart: restart,
       showScreen: showScreen, ensureLevels: ensureLevels, hintCell: hintCell, getPack: getPack, buildPack: buildPack,
       coinAward: coinAward, applyTheme: applyTheme, setZoom: setZoom, resetZoom: resetZoom, livesForLevel: livesForLevel,
+      buildBoard: buildBoard, isArchived: isArchived, touchMode: touchMode,
       dateKey: dateKey, weekKey: weekKey, monthKey: monthKey };
   }
 

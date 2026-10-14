@@ -67,6 +67,10 @@ A dedicated **Challenges** screen with hard packs drawn from the toughest level 
 - **Fireworks and a firecracker sound** when you solve a puzzle (sound can be turned off in Settings).
 - **Lives.** You start with **3 lives** and gain **+1 life every 25 levels** (levels 1–25 = 3, 26–50 = 4, 51–75 = 5, …). Three wrong taps and the level replays itself. *Relaxed (no limit)* toggle in Settings.
 - **Double-press Back to exit** — a single Back press navigates up, never closes the game.
+- **Mode archive.** Hide any mode you don't play, and unused modes auto-archive after **3 days**; modes you play rise to the top. Toggle it in Settings.
+- **Theme-aware arrows.** Dark theme → **white** arrows; white theme → **dark** arrows. Every mode also has its own board **pattern** so they don't look alike.
+- **Sound effects.** Taps, slides and escapes each have their own sound, plus fireworks on a solve (one toggle in Settings).
+- **Suggestions & requests.** Message **[@osintgram_io](https://instagram.com/osintgram_io)** for help or to request new modes, themes or difficulty — there's a button in Settings.
 - **Undo**, **Restart**, and per-mode stars, unlock progression and continue-where-you-left-off.
 
 ## Daily, weekly and monthly content
