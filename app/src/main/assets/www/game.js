@@ -511,9 +511,10 @@
     return shaft + headPath;
   }
   function longTurns(t) { return (t === "curly" || t === "maze") ? 3 : 2; }
-  function freeRunFrom(lv, occ, claimed, r, c, d) {
+  function oppDir(d) { return d < 4 ? (d + 2) % 4 : ((d - 4) + 2) % 4 + 4; }
+  function freeRunFrom(lv, occ, claimed, r, c, d, used) {
     var dr = DIRS[d][0], dc = DIRS[d][1], n = 0, rr = r + dr, cc = c + dc;
-    while (rr >= 0 && rr < lv.rows && cc >= 0 && cc < lv.cols && !occ[rr + "," + cc] && !claimed[rr + "," + cc]) { n++; rr += dr; cc += dc; }
+    while (rr >= 0 && rr < lv.rows && cc >= 0 && cc < lv.cols && !occ[rr + "," + cc] && !claimed[rr + "," + cc] && !(used && used[rr + "," + cc])) { n++; rr += dr; cc += dc; }
     return n;
   }
   // Build each long arrow's path ONCE per level: it runs straight, then bends 90
@@ -524,24 +525,34 @@
     state.arrows.forEach(function (a) { occ[a.r + "," + a.c] = 1; });
     (lv.walls || []).forEach(function (w) { occ[w[0] + "," + w[1]] = 1; });
     state.arrows.slice().sort(function (a, b) { return a.id - b.id; }).forEach(function (a) {
-      var path = [{ r: a.r, c: a.c }], dir = a.d, t = 0;
+      var path = [{ r: a.r, c: a.c }], used = {}, dir = oppDir(a.d), t = 0;
+      used[a.r + "," + a.c] = 1;
       function step() {
         var dr = DIRS[dir][0], dc = DIRS[dir][1];
         while (true) {
-          var last = path[path.length - 1], nr = last.r + dr, nc = last.c + dc;
+          var last = path[path.length - 1], nr = last.r + dr, nc = last.c + dc, k = nr + "," + nc;
           if (nr < 0 || nr >= lv.rows || nc < 0 || nc >= lv.cols) break;
-          if (occ[nr + "," + nc] || claimed[nr + "," + nc]) break;
-          path.push({ r: nr, c: nc });
+          if (occ[k] || claimed[k] || used[k]) break;
+          path.push({ r: nr, c: nc }); used[k] = 1;
         }
       }
+      // The shaft must first leave the tile from BEHIND (opposite the escape
+      // direction). Only once it has done so may it bend -- otherwise the
+      // arrowhead would end up pointing the wrong way.
       step();
-      while (t < turns && dir < 4) {
-        var p1 = (dir + 1) % 4, p3 = (dir + 3) % 4, last = path[path.length - 1];
-        var l1 = freeRunFrom(lv, occ, claimed, last.r, last.c, p1), l3 = freeRunFrom(lv, occ, claimed, last.r, last.c, p3);
-        if (l1 < 1 && l3 < 1) break;
-        dir = (l1 >= l3) ? p1 : p3;
-        step(); t++;
+      if (path.length > 1) {
+        while (t < turns && dir < 4) {
+          var p1 = (dir + 1) % 4, p3 = (dir + 3) % 4, last = path[path.length - 1];
+          var l1 = freeRunFrom(lv, occ, claimed, last.r, last.c, p1, used), l3 = freeRunFrom(lv, occ, claimed, last.r, last.c, p3, used);
+          if (l1 < 1 && l3 < 1) break;
+          dir = (l1 >= l3) ? p1 : p3;
+          step(); t++;
+        }
       }
+      // Reverse so the path ARRIVES at the tile travelling in the tile's own
+      // direction: the arrowhead lands on the tile pointing the way it escapes,
+      // and the bent shaft trails away behind it.
+      path.reverse();
       path.forEach(function (p) { claimed[p.r + "," + p.c] = 1; });
       a.path = path;
     });
