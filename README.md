@@ -57,6 +57,7 @@ A dedicated **Challenges** screen with hard packs drawn from the toughest level 
 - **Pinch to zoom and drag to pan** the board while you play (plus on-screen + / − / reset buttons).
 - **App theme: Dark, White, or Auto** (follows your device).
 - **Fireworks and a firecracker sound** when you solve a puzzle (sound can be turned off in Settings).
+- **Lives.** You get **3 lives per level** — three wrong taps and the level replays itself. There's a *Relaxed (no limit)* toggle in Settings.
 - **Double-press Back to exit** — a single Back press navigates up, never closes the game.
 - **Undo**, **Restart**, and per-mode stars, unlock progression and continue-where-you-left-off.
 

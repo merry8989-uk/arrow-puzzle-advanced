@@ -60,7 +60,7 @@
     { id: "daily_hard", name: "Daily Challenge", theme: "black", desc: "A fresh hard set every day." }
   ];
   var CHAPTER = 50, DAILY_COUNT = 50, WEEKLY_COUNT = 50, MONTHLY_COUNT = 100;
-  var HINT_COST = 2000, MAX_COINS = 100;
+  var HINT_COST = 2000, MAX_COINS = 100, MAX_LIVES = 3;
   var DEFAULT_MANIFEST = "https://raw.githubusercontent.com/merry8989-uk/arrow-puzzle-advanced/main/packs/manifest.json";
 
   var state = {
@@ -90,14 +90,15 @@
   /* ---------- progress ---------- */
   function blankProgress() {
     return { modes: {}, packs: { daily: { key: "", done: {} }, weekly: { key: "", done: {} }, monthly: { key: "", done: {} } },
-             online: { packs: {}, checked: null }, coins: 0, challenges: {}, settings: { theme: "dark", sound: true } };
+             online: { packs: {}, checked: null }, coins: 0, challenges: {}, settings: { theme: "dark", sound: true, lives: true } };
   }
   function loadProgress() {
     try { var raw = localStorage.getItem("apa_progress_v2");
       if (raw) { var p = JSON.parse(raw);
         if (p && p.modes) {
           if (p.coins == null) p.coins = 0; if (!p.challenges) p.challenges = {};
-          if (!p.settings) p.settings = { theme: "dark", sound: true };
+          if (!p.settings) p.settings = { theme: "dark", sound: true, lives: true };
+          if (p.settings.lives == null) p.settings.lives = true;
           return p; } } } catch (e) {}
     return blankProgress();
   }
@@ -326,6 +327,7 @@
     state.arrows = lv.arrows.map(function (a, i) { return { id: i + 1, r: a[0], c: a[1], d: a[2], need: a.length > 3 ? a[3] : 1 }; });
     state.nextId = lv.arrows.length + 1;
     state.history = []; state.moves = 0; state.hintsUsed = 0; state.locked = false;
+    state.lives = MAX_LIVES; updateLives();
     state.startTime = Date.now(); resetZoom();
     if (state.timer) clearInterval(state.timer);
     state.timer = setInterval(function () { var s = Math.round((Date.now() - state.startTime) / 1000); var e = $("stat-time"); if (e) e.textContent = s + "s"; }, 500);
@@ -421,6 +423,28 @@
   }
   function shake(id) { var el = state.els[id]; if (!el) return; el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
 
+  function livesOn() { return !(state.progress.settings && state.progress.settings.lives === false); }
+  function updateLives() {
+    var e = $("stat-lives"); if (!e) return;
+    if (!livesOn()) { e.innerHTML = "\u221E"; return; }
+    var n = Math.max(0, state.lives == null ? MAX_LIVES : state.lives);
+    e.innerHTML = "<span style='color:#ff5b6e'>" + "\u2665".repeat(n) + "</span>" +
+      "<span style='color:#5a6478'>" + "\u2665".repeat(Math.max(0, MAX_LIVES - n)) + "</span>";
+  }
+  function loseLife(id) {
+    shake(id);
+    if (!livesOn()) return;
+    state.lives = (state.lives == null ? MAX_LIVES : state.lives) - 1;
+    updateLives();
+    if (state.lives <= 0) {
+      state.locked = true;
+      toast("Out of lives \u2014 replaying this level");
+      setTimeout(function () { restart(); }, 850);
+    } else {
+      toast(state.lives + (state.lives === 1 ? " life left" : " lives left"));
+    }
+  }
+
   function snapshot() { return { arrows: state.arrows.map(function (a) { return { id: a.id, r: a.r, c: a.c, d: a.d, need: a.need }; }), moves: state.moves, hintsUsed: state.hintsUsed, nextId: state.nextId }; }
 
   function onTap(id) {
@@ -431,7 +455,7 @@
     var arr = state.arrows.map(function (a) { return [a.r, a.c, a.d, a.need]; });
     var tile = state.arrows[idx];
     var res = C.applyMove(mech, lv.rows, lv.cols, arr, lv.walls, idx);
-    if (!res) { shake(id); return; }
+    if (!res) { loseLife(id); return; }
     state.history.push(snapshot());
     state.moves++;
     if (mech === "escape") {
@@ -631,6 +655,8 @@
     document.querySelectorAll("#theme-seg .seg-btn").forEach(function (b) { b.classList.toggle("sel", b.getAttribute("data-theme") === th); });
     var st = $("sound-toggle");
     if (st) st.textContent = "Fireworks sound: " + ((state.progress.settings && state.progress.settings.sound === false) ? "Off" : "On");
+    var lt = $("lives-toggle");
+    if (lt) lt.textContent = "Lives: " + (livesOn() ? "3 per level" : "Relaxed (no limit)");
     var ci = $("coins-info");
     if (ci) ci.textContent = "You have " + (state.progress.coins || 0).toLocaleString("en-IN") + " coins. Earn up to 100 per puzzle; a hint costs 2000.";
   }
@@ -746,6 +772,11 @@
       var cur = state.progress.settings.sound !== false;
       state.progress.settings.sound = !cur; saveProgress(); renderSettings();
       toast("Fireworks sound " + (!cur ? "on" : "off"));
+    };
+    $("lives-toggle").onclick = function () {
+      var cur = livesOn();
+      state.progress.settings.lives = !cur; saveProgress(); renderSettings(); updateLives();
+      toast("Lives " + (!cur ? "on \u2014 3 per level" : "off \u2014 relaxed"));
     };
     document.querySelectorAll("[data-nav]").forEach(function (b) { b.onclick = function () { showScreen(b.getAttribute("data-nav")); }; });
     $("chap-prev").onclick = function () { if (state.chapter > 1) { state.chapter--; renderLevels(); } };
