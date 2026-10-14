@@ -16,9 +16,10 @@ Usage:  python3 build_assets.py <data_dir> <out_dir>
 import json, os, sys
 
 MECH = {
-    "classic": {"globals": ["LEVELS_CLASSIC"], "store_sol": False, "chunk": 10 ** 9},
-    "escape":  {"globals": ["LEVELS_ESCAPE_1", "LEVELS_ESCAPE_2"], "store_sol": True, "chunk": 3000},
-    "multi":   {"globals": ["LEVELS_MULTI"], "store_sol": True, "chunk": 10 ** 9},
+    "classic": {"src": "levels_classic_v3.json", "globals": ["LEVELS_CLASSIC_1", "LEVELS_CLASSIC_2"], "store_sol": False, "chunk": 3000},
+    "escape":  {"src": "levels_escape.json",     "globals": ["LEVELS_ESCAPE_1", "LEVELS_ESCAPE_2"], "store_sol": True, "chunk": 3000},
+    "multi":   {"src": "levels_multi.json",      "globals": ["LEVELS_MULTI"], "store_sol": True, "chunk": 10 ** 9},
+    "mega":    {"src": "levels_mega.json",       "globals": ["LEVELS_MEGA"], "store_sol": False, "chunk": 10 ** 9},
 }
 
 def compact_sol(sol, cols):
@@ -50,7 +51,7 @@ def main():
     data_dir, out_dir = sys.argv[1], sys.argv[2]
     os.makedirs(out_dir, exist_ok=True)
     for mode, cfg in MECH.items():
-        path = os.path.join(data_dir, "levels_%s.json" % mode)
+        path = os.path.join(data_dir, cfg["src"])
         if not os.path.exists(path):
             print("  skip", mode, "(no data)"); continue
         levels = json.load(open(path))

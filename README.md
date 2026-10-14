@@ -38,11 +38,17 @@ A **mechanic** defines the rules; a **theme** defines how tiles look. A **mode**
 | **Neon Arrows** | Classic | Glowing borderless arrows |
 | **Curly Arrows** | Classic | Long curly / bent arrows (light board) |
 | **Curly Escape** | Escape | Long curly arrows that slide |
+| **Mega Curly** | Classic | Giant boards, hundreds of curly arrows |
+| **Mega Long** | Classic | Giant boards, hundreds of long arrows |
 
 ### Mechanics
 - **Classic** — tap a tile to launch it off the board; it only leaves if the whole lane to the edge is clear.
 - **Escape** — each tap slides a tile one step; tiles leave the board at the edge.
 - **Multi (numbered / dotted)** — each tile carries a count (1–3); a tap ticks it down, and only the *final* tap needs a clear lane.
+
+## Difficulty
+
+Arrow counts rise as you progress, and **every 6th level is a VERY HARD level** — a big board with **more than 50 arrows** (up to ~138). All arrows point **straight North / East / South / West**. The **Mega** modes go further: boards from 40×40 to 80×80 with **400–920 arrows**, and a **Mega Boards** challenge pack.
 
 ## Coins & hints
 

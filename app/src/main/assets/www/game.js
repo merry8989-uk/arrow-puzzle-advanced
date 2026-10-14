@@ -17,10 +17,12 @@
               4: "\uD83C\uDF19", 5: "\u26A1", 6: "\u2764\uFE0F", 7: "\uD83D\uDD3A" };
 
   var MECHANICS = {
-    classic: { files: [["levels_classic.js", "LEVELS_CLASSIC"]], size: 6000, sol: false },
-    escape: { files: [["levels_escape_1.js", "LEVELS_ESCAPE_1"], ["levels_escape_2.js", "LEVELS_ESCAPE_2"]], size: 6000, sol: true },
-    multi: { files: [["levels_multi.js", "LEVELS_MULTI"]], size: 3000, sol: true }
+    classic: { files: [["levels_classic_1.js", "LEVELS_CLASSIC_1"], ["levels_classic_2.js", "LEVELS_CLASSIC_2"]], size: 6000, sol: false, core: "classic" },
+    escape: { files: [["levels_escape_1.js", "LEVELS_ESCAPE_1"], ["levels_escape_2.js", "LEVELS_ESCAPE_2"]], size: 6000, sol: true, core: "escape" },
+    multi: { files: [["levels_multi.js", "LEVELS_MULTI"]], size: 3000, sol: true, core: "multi" },
+    mega: { files: [["levels_mega.js", "LEVELS_MEGA"]], size: 24, sol: false, core: "classic" }
   };
+  function coreOf(mech) { return (MECHANICS[mech] && MECHANICS[mech].core) || mech; }
   var THEMES = {
     arrow: { name: "Arrows", glyph: "\u27A4", board: "dark", render: "tile" },
     round: { name: "Round colours", glyph: "\u25CF", board: "dark", render: "tile" },
@@ -51,7 +53,9 @@
     { id: "long_escape", name: "Long Escape", mech: "escape", theme: "long", desc: "Long thin arrows that slide one step per tap." },
     { id: "neon", name: "Neon Arrows", mech: "classic", theme: "neon", desc: "Glowing borderless arrows on a dark board." },
     { id: "curly", name: "Curly Arrows", mech: "classic", theme: "curly", desc: "Long curly arrows that clear when their lane opens." },
-    { id: "curly_escape", name: "Curly Escape", mech: "escape", theme: "curly", desc: "Long curly arrows that slide one step per tap." }
+    { id: "curly_escape", name: "Curly Escape", mech: "escape", theme: "curly", desc: "Long curly arrows that slide one step per tap." },
+    { id: "mega_curly", name: "Mega Curly", mech: "mega", theme: "curly", desc: "Giant boards with hundreds of long curly arrows." },
+    { id: "mega_long", name: "Mega Long", mech: "mega", theme: "long", desc: "Giant boards with hundreds of long arrows." }
   ];
 
   // Hard challenge packs, drawn from the toughest level ranges (all offline).
@@ -60,7 +64,8 @@
     { id: "expert_escape", name: "Expert Escape", theme: "arrow", desc: "The hardest escape layouts." },
     { id: "multi_master", name: "Multi Master", theme: "dots", desc: "High-count multi tiles." },
     { id: "gauntlet", name: "Gauntlet", theme: "neon", desc: "A brutal mix of every mechanic." },
-    { id: "daily_hard", name: "Daily Challenge", theme: "black", desc: "A fresh hard set every day." }
+    { id: "daily_hard", name: "Daily Challenge", theme: "black", desc: "A fresh hard set every day." },
+    { id: "mega", name: "Mega Boards", theme: "curly", desc: "Hundreds of arrows on giant boards." }
   ];
   var CHAPTER = 50, DAILY_COUNT = 50, WEEKLY_COUNT = 50, MONTHLY_COUNT = 100;
   var HINT_COST = 2000, MAX_COINS = 100, MAX_LIVES = 3;
@@ -336,11 +341,12 @@
     state.timer = setInterval(function () { var s = Math.round((Date.now() - state.startTime) / 1000); var e = $("stat-time"); if (e) e.textContent = s + "s"; }, 500);
     state.solArr = decodeSol(lv.sol, lv.cols);
     $("game-level").textContent = ctx.type === "campaign" ? "Level " + (index + 1) : "Pack " + (ctx.slot + 1);
-    $("game-mode").textContent = m.name;
-    $("hint-note").textContent = m.mech === "classic" ? "Tap a tile whose lane to the edge is clear."
-      : m.mech === "escape" ? "Tap a tile to slide it one step; tiles leave at the edge."
+    $("game-mode").textContent = m.name + (lv.hard ? " \u00b7 very hard" : "") + (lv.mega ? " \u00b7 mega" : "");
+    var core = coreOf(m.mech);
+    $("hint-note").textContent = core === "classic" ? "Tap a tile whose lane to the edge is clear."
+      : core === "escape" ? "Tap a tile to slide it one step; tiles leave at the edge."
       : "Tap a tile to tick it down; its last tap must have a clear lane.";
-    updateStats(); buildBoard(); showScreen("game");
+    showScreen("game"); updateStats(); buildBoard();
   }
   function updateStats() {
     var lv = state.current.level;
@@ -355,7 +361,7 @@
     var lv = state.current.level, R = lv.rows, Cc = lv.cols, area = document.querySelector(".board-area");
     var availW = area.clientWidth - 16, availH = area.clientHeight - 16, gap = 2, pad = 8;
     var S = Math.floor(Math.min((availW - 2 * pad - (Cc - 1) * gap) / Cc, (availH - 2 * pad - (R - 1) * gap) / R));
-    S = Math.max(18, Math.min(S, 78));
+    S = Math.max(16, Math.min(S, 78));
     state.geo = { S: S, gap: gap, pad: pad };
     return { R: R, Cc: Cc };
   }
@@ -391,10 +397,18 @@
     board.style.setProperty("--s", state.geo.S + "px");
     board.className = "board board-" + ((THEMES[m.theme] && THEMES[m.theme].board) || "dark");
     board.innerHTML = ""; state.els = {};
-    for (var r = 0; r < R; r++) for (var c = 0; c < Cc; c++) {
-      var cell = document.createElement("div"); cell.className = "cellbg";
-      cell.style.width = cell.style.height = state.geo.S + "px";
-      cell.style.left = cellX(c) + "px"; cell.style.top = cellY(r) + "px"; board.appendChild(cell);
+    board.style.backgroundImage = ""; board.style.backgroundSize = ""; board.style.backgroundPosition = "";
+    if (R * Cc <= 1200) {
+      for (var r = 0; r < R; r++) for (var c = 0; c < Cc; c++) {
+        var cell = document.createElement("div"); cell.className = "cellbg";
+        cell.style.width = cell.style.height = state.geo.S + "px";
+        cell.style.left = cellX(c) + "px"; cell.style.top = cellY(r) + "px"; board.appendChild(cell);
+      }
+    } else {
+      var step = state.geo.S + state.geo.gap;
+      board.style.backgroundImage = "linear-gradient(rgba(120,120,120,.22) 1px,transparent 1px),linear-gradient(90deg,rgba(120,120,120,.22) 1px,transparent 1px)";
+      board.style.backgroundSize = step + "px " + step + "px";
+      board.style.backgroundPosition = state.geo.pad + "px " + state.geo.pad + "px";
     }
     (lv.walls || []).forEach(function (w) {
       var el = document.createElement("div"); el.className = "wall";
@@ -461,7 +475,7 @@
     if (state.locked || state.swallow) return;
     var idx = state.arrows.findIndex(function (a) { return a.id === id; });
     if (idx < 0) return;
-    var lv = state.current.level, mech = modeById(state.current.modeId).mech;
+    var lv = state.current.level, mech = coreOf(modeById(state.current.modeId).mech);
     var arr = state.arrows.map(function (a) { return [a.r, a.c, a.d, a.need]; });
     var tile = state.arrows[idx];
     var res = C.applyMove(mech, lv.rows, lv.cols, arr, lv.walls, idx);
@@ -535,7 +549,7 @@
   /* ---------- hint ---------- */
   function eqState(a, b) { if (a.length !== b.length) return false; for (var i = 0; i < a.length; i++) if (a[i][0] !== b[i][0] || a[i][1] !== b[i][1] || a[i][2] !== b[i][2]) return false; return true; }
   function hintCell() {
-    var lv = state.current.level, mech = modeById(state.current.modeId).mech;
+    var lv = state.current.level, mech = coreOf(modeById(state.current.modeId).mech);
     var arr = state.arrows.map(function (a) { return [a.r, a.c, a.d, a.need]; });
     if (mech === "classic" || mech === "multi") { var i = C.hintIndex(mech, lv.rows, lv.cols, arr, lv.walls); return i >= 0 ? [arr[i][0], arr[i][1]] : null; }
     // escape: fast path along stored solution, else solver
@@ -591,6 +605,7 @@
     return items;
   }
   function challengeItems(c) {
+    if (c.id === "mega") { var a = []; for (var i = 0; i < 24; i++) a.push({ modeId: "mega_curly", levelId: i + 1 }); return a; }
     if (c.id === "gauntlet") return hardItems("gauntlet", null, 0, 0, 60);
     if (c.id === "daily_hard") return hardItems("daily-" + dateKey(new Date()), null, 0, 0, 30);
     var r = { expert_classic: ["classic_arrow", 5200, 6000, 50], expert_escape: ["escape_arrow", 5200, 6000, 50], multi_master: ["dots", 2500, 3000, 50] }[c.id];
@@ -689,31 +704,38 @@
   var zoom = { s: 1, x: 0, y: 0 }, drag = { on: false, moved: 0, x: 0, y: 0, pinch: 0, s0: 1 };
   function applyZoom() { var b = $("board"); if (b) b.style.transform = "translate(" + zoom.x + "px," + zoom.y + "px) scale(" + zoom.s + ")"; }
   function resetZoom() { zoom = { s: 1, x: 0, y: 0 }; applyZoom(); }
-  function setZoom(s) { zoom.s = Math.max(0.6, Math.min(4, s)); clampPan(); applyZoom(); }
+  function setZoom(s) { zoom.s = Math.max(0.6, Math.min(6, s)); clampPan(); applyZoom(); }
   function clampPan() {
-    var b = $("board"); if (!b) return;
-    var mx = 0.9 * b.offsetWidth * (zoom.s - 1) + 40, my = 0.9 * b.offsetHeight * (zoom.s - 1) + 40;
+    var b = $("board"), a = $("board-area"); if (!b || !a) return;
+    var bw = b.offsetWidth * zoom.s, bh = b.offsetHeight * zoom.s;
+    var mx = Math.max(0, (bw - a.clientWidth) / 2 + 30), my = Math.max(0, (bh - a.clientHeight) / 2 + 30);
     zoom.x = Math.max(-mx, Math.min(mx, zoom.x)); zoom.y = Math.max(-my, Math.min(my, zoom.y));
   }
   function initZoom() {
     var area = $("board-area"); if (!area || area._zi) return; area._zi = true;
     function dist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
+    // Only TWO-finger gestures move the board (pinch to zoom, two-finger drag to
+    // pan). A single finger is for tapping tiles and never pans the board.
+    function mid(e) { return [(e.touches[0].clientX + e.touches[1].clientX) / 2, (e.touches[0].clientY + e.touches[1].clientY) / 2]; }
     area.addEventListener("touchstart", function (e) {
-      if (e.touches.length === 2) { drag.pinch = dist(e.touches); drag.s0 = zoom.s; drag.moved = 99; }
-      else if (e.touches.length === 1) { drag.on = true; drag.moved = 0; drag.x = e.touches[0].clientX; drag.y = e.touches[0].clientY; }
+      if (e.touches.length === 2) {
+        drag.pinch = dist(e.touches); drag.s0 = zoom.s; drag.moved = 99;
+        var m0 = mid(e); drag.x = m0[0]; drag.y = m0[1];
+      }
     }, { passive: true });
     area.addEventListener("touchmove", function (e) {
-      if (e.touches.length === 2) { if (drag.pinch) setZoom(drag.s0 * dist(e.touches) / drag.pinch); e.preventDefault(); }
-      else if (e.touches.length === 1 && drag.on) {
-        var dx = e.touches[0].clientX - drag.x, dy = e.touches[0].clientY - drag.y;
-        drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.touches[0].clientX; drag.y = e.touches[0].clientY;
-        if (zoom.s > 1.01) { zoom.x += dx; zoom.y += dy; clampPan(); applyZoom(); e.preventDefault(); }
+      if (e.touches.length !== 2) return;
+      var d = dist(e.touches);
+      if (drag.pinch) {
+        setZoom(drag.s0 * d / drag.pinch);
+        var m = mid(e);                           // two-finger drag pans too
+        zoom.x += m[0] - drag.x; zoom.y += m[1] - drag.y;
+        drag.x = m[0]; drag.y = m[1];
+        clampPan(); applyZoom();
       }
+      e.preventDefault();
     }, { passive: false });
-    area.addEventListener("touchend", function () {
-      if (drag.moved > 12) { state.swallow = true; setTimeout(function () { state.swallow = false; }, 60); }
-      drag.on = false; drag.pinch = 0;
-    });
+    area.addEventListener("touchend", function () { drag.pinch = 0; });
     area.addEventListener("wheel", function (e) { setZoom(zoom.s * (e.deltaY < 0 ? 1.12 : 0.9)); e.preventDefault(); }, { passive: false });
     applyZoom();
   }
