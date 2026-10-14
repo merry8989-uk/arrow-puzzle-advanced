@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Arrow Puzzle Advanced</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- HOME -->
+  <section id="screen-home" class="screen active">
+    <div class="home-wrap">
+      <div class="logo">
+        <div class="logo-arrow">&#10148;</div>
+        <h1>ARROW PUZZLE</h1>
+        <h2>ADVANCED</h2>
+      </div>
+      <div class="mode-chip" id="home-mode-chip">Classic</div>
+      <button class="btn primary big" id="btn-continue">
+        <span class="bc-label">Continue</span>
+        <span class="bc-sub" id="continue-sub">Level 1</span>
+      </button>
+      <div class="home-row">
+        <button class="btn" id="btn-levels">Levels</button>
+        <button class="btn" id="btn-settings">Settings</button>
+      </div>
+      <div class="home-foot">
+        <span id="home-total">12,000</span> levels &middot; works offline
+      </div>
+    </div>
+  </section>
+
+  <!-- LEVEL SELECT -->
+  <section id="screen-levels" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" data-nav="home">&#8592;</button>
+      <div class="topbar-title">
+        <span id="levels-mode">Classic</span>
+        <small id="levels-progress">0 / 6000 solved</small>
+      </div>
+      <button class="icon-btn" id="levels-mode-toggle">&#8646;</button>
+    </div>
+    <div class="chapter-nav">
+      <button class="icon-btn small" id="chap-prev">&#8592;</button>
+      <div class="chapter-title" id="chap-title">Chapter 1 &middot; levels 1&ndash;50</div>
+      <button class="icon-btn small" id="chap-next">&#8594;</button>
+    </div>
+    <div class="level-grid" id="level-grid"></div>
+  </section>
+
+  <!-- GAME -->
+  <section id="screen-game" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" data-nav="levels">&#8592;</button>
+      <div class="topbar-title">
+        <span id="game-level">Level 1</span>
+        <small id="game-mode">Classic</small>
+      </div>
+      <button class="icon-btn" id="game-restart-top">&#8635;</button>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><span class="stat-v" id="stat-moves">0</span><span class="stat-l">Moves</span></div>
+      <div class="stat"><span class="stat-v" id="stat-par">0</span><span class="stat-l">Par</span></div>
+      <div class="stat"><span class="stat-v" id="stat-stars">&#9734;&#9734;&#9734;</span><span class="stat-l">Rating</span></div>
+    </div>
+    <div class="board-area">
+      <div class="board" id="board"></div>
+    </div>
+    <div class="actionbar">
+      <button class="btn" id="btn-undo">&#8630; Undo</button>
+      <button class="btn" id="btn-hint">&#9788; Hint</button>
+      <button class="btn" id="btn-restart">&#8635; Restart</button>
+    </div>
+    <div class="hint-note" id="hint-note"></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="screen-settings" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" data-nav="home">&#8592;</button>
+      <div class="topbar-title"><span>Settings</span></div>
+      <span class="icon-btn spacer"></span>
+    </div>
+    <div class="settings-body">
+      <h3>Game mode</h3>
+      <p class="muted">Each mode has its own 6,000 levels and its own progress.</p>
+      <div class="mode-options">
+        <button class="mode-opt" data-mode="classic">
+          <div class="mo-title">Classic</div>
+          <div class="mo-desc">Tap an arrow to launch it off the board. It only leaves if nothing blocks its path. Clear the board.</div>
+        </button>
+        <button class="mode-opt" data-mode="escape">
+          <div class="mo-title">Escape</div>
+          <div class="mo-desc">Each tap slides an arrow one step. Arrows leave the board at the edge. Get every arrow off the board.</div>
+        </button>
+      </div>
+      <h3>Progress</h3>
+      <button class="btn danger" id="btn-reset">Reset all progress</button>
+      <h3>About</h3>
+      <p class="muted">Arrow Puzzle Advanced &middot; 12,000 procedurally generated puzzles, every one guaranteed solvable. Works fully offline.</p>
+    </div>
+  </section>
+
+  <div id="toast"></div>
+
+  <div id="win" class="overlay">
+    <div class="win-card">
+      <div class="win-stars" id="win-stars">&#9733;&#9733;&#9733;</div>
+      <h2 id="win-title">Level complete</h2>
+      <p id="win-sub">Solved in 0 moves</p>
+      <button class="btn primary" id="win-next">Next level</button>
+      <button class="btn" id="win-replay">Replay</button>
+    </div>
+  </div>
+
+</div>
+<script src="game_core.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

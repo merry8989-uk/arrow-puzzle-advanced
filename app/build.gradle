@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.arrowpuzzle.advanced'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.arrowpuzzle.advanced"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            applicationIdSuffix ".debug"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packaging {
+        resources {
+            excludes += ['META-INF/*.kotlin_module', 'META-INF/*.version']
+        }
+    }
+
+    // Levels are shipped as prebuilt assets; never compress the large level files twice.
+    androidResources {
+        noCompress 'json'
+    }
+}
+
+// No third-party dependencies: the app is pure Android framework + bundled web assets.
+dependencies { }
