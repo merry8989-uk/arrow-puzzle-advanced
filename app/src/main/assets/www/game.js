@@ -463,14 +463,76 @@
       el.style.width = el.style.height = state.geo.S + "px";
       el.style.left = cellX(w[1]) + "px"; el.style.top = cellY(w[0]) + "px"; board.appendChild(el);
     });
+    state.occ = buildOcc();
     state.arrows.forEach(function (a) { createArrowEl(a, m.theme); });
+  }
+  /* ---------- long multi-cell arrows ----------
+     Long / Curly / Black draw a single long arrow that runs through the open
+     lane ahead of the tile and ends in an arrowhead, instead of a small glyph
+     boxed in one cell. Purely visual: the rules are unchanged. */
+  var LONG_THEMES = { long: 1, curly: 1, black: 1 };
+  function isLongTheme(t) { return !!LONG_THEMES[t]; }
+  function buildOcc() {
+    var s = {};
+    state.arrows.forEach(function (a) { s[a.r + "," + a.c] = 1; });
+    (state.current.level.walls || []).forEach(function (w) { s[w[0] + "," + w[1]] = 1; });
+    return s;
+  }
+  function arrowSpanCells(lv, occ, r, c, d) {
+    var dr = DIRS[d][0], dc = DIRS[d][1], L = 1, rr = r + dr, cc = c + dc;
+    while (rr >= 0 && rr < lv.rows && cc >= 0 && cc < lv.cols && !occ[rr + "," + cc]) { L++; rr += dr; cc += dc; }
+    return L;
+  }
+  function longArrowSVG(d, w, h, S, color, curly) {
+    var dr = DIRS[d][0], dc = DIRS[d][1], m = S * 0.07;
+    var hw = Math.max(1.0, S * 0.058), head = Math.max(3, S * 0.23);
+    var nx, ny, fx, fy;
+    if (dr === 0) { nx = dc > 0 ? m : w - m; fx = dc > 0 ? w - m : m; ny = fy = h / 2; }
+    else if (dc === 0) { ny = dr > 0 ? m : h - m; fy = dr > 0 ? h - m : m; nx = fx = w / 2; }
+    else { nx = dc > 0 ? m : w - m; ny = dr > 0 ? m : h - m; fx = dc > 0 ? w - m : m; fy = dr > 0 ? h - m : m; }
+    var ux = Math.sign(fx - nx) || 0, uy = Math.sign(fy - ny) || 0;
+    var sx = fx - ux * head * 1.5, sy = fy - uy * head * 1.5;
+    var stroke = "stroke='" + color + "' stroke-width='" + (hw * 2) + "' stroke-linecap='round' fill='none'";
+    var shaft;
+    if (curly) {
+      var mx = (nx + sx) / 2 + (dc === 0 ? S * 0.5 : 0), my = (ny + sy) / 2 + (dr === 0 ? S * 0.5 : 0);
+      shaft = "<path d='M" + nx + " " + ny + " Q " + mx + " " + my + " " + sx + " " + sy + "' " + stroke + "/>" +
+              "<path d='M" + nx + " " + ny + " Q " + (nx + (mx - nx) * 0.5) + " " + (ny + (my - ny) * 0.5) + " " + mx + " " + my + "' " + stroke + "/>";
+    } else {
+      shaft = "<line x1='" + nx + "' y1='" + ny + "' x2='" + sx + "' y2='" + sy + "' " + stroke + "/>";
+    }
+    var px = -uy, py = ux;
+    var headPath = "<path d='M" + fx + " " + fy + " L" + (fx - ux * head * 1.7 + px * head) + " " + (fy - uy * head * 1.7 + py * head) +
+      " L" + (fx - ux * head * 1.7 - px * head) + " " + (fy - uy * head * 1.7 - py * head) + " Z' fill='" + color + "'/>";
+    return shaft + headPath;
+  }
+  function longArrowInner(a, occ) {
+    var lv = state.current.level, S = state.geo.S, gap = state.geo.gap, step = S + gap;
+    var th = THEMES[modeById(state.current.modeId).theme] || THEMES.long;
+    var L = arrowSpanCells(lv, occ, a.r, a.c, a.d), dr = DIRS[a.d][0], dc = DIRS[a.d][1];
+    var span = L * S + (L - 1) * gap, w, h, ox = 0, oy = 0;
+    if (dr === 0) { w = span; h = S; ox = (dc < 0) ? -(L - 1) * step : 0; }
+    else if (dc === 0) { w = S; h = span; oy = (dr < 0) ? -(L - 1) * step : 0; }
+    else { w = h = span; ox = (dc < 0) ? -(L - 1) * step : 0; oy = (dr < 0) ? -(L - 1) * step : 0; }
+    var svg = "<svg class='la' width='" + w + "' height='" + h + "' viewBox='0 0 " + w + " " + h + "' style='left:" + ox + "px;top:" + oy + "px'>" +
+      longArrowSVG(a.d, w, h, S, arrowColor(th), th.render === "curly") + "</svg>";
+    return svg + (a.need > 1 ? "<div class='need'>" + a.need + "</div>" : "");
+  }
+  function refreshLongArrows(moved) {
+    if (!state.current) return;
+    if (!isLongTheme(modeById(state.current.modeId).theme)) return;
+    var occ = buildOcc(), all = state.arrows.length <= 200 || !moved;
+    state.arrows.forEach(function (a) {
+      if (!all && !(a.r === moved.r || a.c === moved.c)) return;
+      var el = state.els[a.id]; if (el) el.innerHTML = longArrowInner(a, occ);
+    });
   }
   function createArrowEl(a, theme) {
     var el = document.createElement("div");
     el.className = "arrow th-" + theme;
     el.style.width = el.style.height = state.geo.S + "px";
     el.style.transform = "translate(" + cellX(a.c) + "px," + cellY(a.r) + "px)";
-    el.innerHTML = tileInner(theme, a.d, a.need);
+    el.innerHTML = isLongTheme(theme) ? longArrowInner(a, state.occ || buildOcc()) : tileInner(theme, a.d, a.need);
     el.addEventListener("click", function () { onTap(a.id); });
     $("board").appendChild(el); state.els[a.id] = el;
   }
@@ -526,6 +588,7 @@
     var lv = state.current.level, mech = coreOf(modeById(state.current.modeId).mech);
     var arr = state.arrows.map(function (a) { return [a.r, a.c, a.d, a.need]; });
     var tile = state.arrows[idx];
+    var lv0r = tile.r, lv0c = tile.c;
     var res = C.applyMove(mech, lv.rows, lv.cols, arr, lv.walls, idx);
     if (!res) { sfxWrong(); loseLife(id); return; }
     state.history.push(snapshot());
@@ -540,6 +603,7 @@
     } else {
       sfxClear(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d);
     }
+    refreshLongArrows({ r: lv0r, c: lv0c });
     updateStats();
     if (state.arrows.length === 0) setTimeout(winLevel, 430);
   }
@@ -552,7 +616,7 @@
     if (!state.history.length) { toast("Nothing to undo"); return; }
     var s = state.history.pop();
     state.arrows = s.arrows; state.moves = s.moves; state.hintsUsed = s.hintsUsed; state.nextId = s.nextId;
-    rebuildArrows(); updateStats();
+    rebuildArrows(); refreshLongArrows(null); updateStats();
   }
   function restart() { if (state.current) playLevel(state.current.modeId, state.current.index, state.current.levelsArr, state.current.ctx); }
 
