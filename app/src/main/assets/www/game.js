@@ -66,19 +66,42 @@
   }
 
   // ---------- level data ----------
+  var LEVEL_FILES = {
+    classic: [["levels_classic.js", "LEVELS_CLASSIC"]],
+    escape: [["levels_escape_1.js", "LEVELS_ESCAPE_1"], ["levels_escape_2.js", "LEVELS_ESCAPE_2"]]
+  };
   function ensureLevels(mode, cb) {
     if (state.data[mode]) return cb();
     if (state.loading[mode]) { state.loading[mode].push(cb); return; }
     state.loading[mode] = [cb];
-    var s = document.createElement("script");
-    s.src = mode === "classic" ? "levels_classic.js" : "levels_escape.js";
-    s.onload = function () {
-      state.data[mode] = window[mode === "classic" ? "LEVELS_CLASSIC" : "LEVELS_ESCAPE"];
-      var q = state.loading[mode]; state.loading[mode] = null;
-      (q || []).forEach(function (f) { f(); });
-    };
-    s.onerror = function () { toast("Could not load levels"); };
-    document.head.appendChild(s);
+    var files = LEVEL_FILES[mode], acc = [], i = 0;
+    function next() {
+      if (i >= files.length) {
+        state.data[mode] = acc;
+        var q = state.loading[mode]; state.loading[mode] = null;
+        (q || []).forEach(function (f) { f(); });
+        return;
+      }
+      var f = files[i++];
+      var s = document.createElement("script");
+      s.src = f[0];
+      s.onload = function () { acc = acc.concat(window[f[1]] || []); next(); };
+      s.onerror = function () { toast("Could not load levels"); };
+      document.head.appendChild(s);
+    }
+    next();
+  }
+
+  // Escape solutions ship packed as 2-digit-per-move strings; expand on use.
+  function decodeSol(sol, cols) {
+    if (!sol) return [];
+    if (typeof sol !== "string") return sol;
+    var out = [];
+    for (var i = 0; i + 1 < sol.length; i += 2) {
+      var code = parseInt(sol.substr(i, 2), 10);
+      out.push([Math.floor(code / cols), code % cols]);
+    }
+    return out;
   }
 
   // ---------- home ----------
@@ -124,6 +147,7 @@
       var arr = state.data[state.mode];
       var lv = arr[id - 1];
       state.level = lv;
+      state.solArr = decodeSol(lv.sol, lv.cols);
       state.arrows = lv.arrows.map(function (a, i) { return { id: i + 1, r: a[0], c: a[1], d: a[2] }; });
       state.nextId = lv.arrows.length + 1;
       state.history = []; state.moves = 0; state.hintsUsed = 0; state.locked = false;
@@ -313,7 +337,7 @@
       return i >= 0 ? [arr[i][0], arr[i][1]] : null;
     }
     // escape: fast path along the stored solution, then the solver
-    var sol = state.level.sol || [];
+    var sol = state.solArr || [];
     var cur = arr.slice().sort(cmp);
     var st = state.level.arrows.map(function (a) { return [a[0], a[1], a[2]]; }).sort(cmp);
     for (var j = 0; j < sol.length; j++) {
