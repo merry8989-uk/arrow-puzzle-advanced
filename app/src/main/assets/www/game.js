@@ -467,7 +467,7 @@
       el.style.left = cellX(w[1]) + "px"; el.style.top = cellY(w[0]) + "px"; board.appendChild(el);
     });
     state.occ = buildOcc();
-    if (isLongTheme(m.theme)) computeLongLengths();
+    if (isLongTheme(m.theme)) computeLongPaths(longTurns(m.theme));
     state.arrows.forEach(function (a) { createArrowEl(a, m.theme); });
   }
   /* ---------- long multi-cell arrows ----------
@@ -510,21 +510,40 @@
       " L" + (fx - ux * head * 1.7 - px * head) + " " + (fy - uy * head * 1.7 - py * head) + " Z' fill='" + color + "'/>";
     return shaft + headPath;
   }
-  // Assign each long arrow a fixed length ONCE per level. Spans are claimed as we
-  // go, so a lane never runs through a cell another arrow's lane already uses --
-  // arrows can never overlap or cross each other.
-  function computeLongLengths() {
+  function longTurns(t) { return (t === "curly" || t === "maze") ? 3 : 2; }
+  function freeRunFrom(lv, occ, claimed, r, c, d) {
+    var dr = DIRS[d][0], dc = DIRS[d][1], n = 0, rr = r + dr, cc = c + dc;
+    while (rr >= 0 && rr < lv.rows && cc >= 0 && cc < lv.cols && !occ[rr + "," + cc] && !claimed[rr + "," + cc]) { n++; rr += dr; cc += dc; }
+    return n;
+  }
+  // Build each long arrow's path ONCE per level: it runs straight, then bends 90
+  // degrees (toward whichever side has more room) and keeps going, ending in an
+  // arrowhead. Cells are claimed as we go, so no two arrows ever overlap or cross.
+  function computeLongPaths(turns) {
     var lv = state.current.level, occ = {}, claimed = {};
     state.arrows.forEach(function (a) { occ[a.r + "," + a.c] = 1; });
     (lv.walls || []).forEach(function (w) { occ[w[0] + "," + w[1]] = 1; });
     state.arrows.slice().sort(function (a, b) { return a.id - b.id; }).forEach(function (a) {
-      var dr = DIRS[a.d][0], dc = DIRS[a.d][1], L = 1, rr = a.r + dr, cc = a.c + dc;
-      var cells = [a.r + "," + a.c];
-      while (rr >= 0 && rr < lv.rows && cc >= 0 && cc < lv.cols && !occ[rr + "," + cc] && !claimed[rr + "," + cc]) {
-        cells.push(rr + "," + cc); L++; rr += dr; cc += dc;
+      var path = [{ r: a.r, c: a.c }], dir = a.d, t = 0;
+      function step() {
+        var dr = DIRS[dir][0], dc = DIRS[dir][1];
+        while (true) {
+          var last = path[path.length - 1], nr = last.r + dr, nc = last.c + dc;
+          if (nr < 0 || nr >= lv.rows || nc < 0 || nc >= lv.cols) break;
+          if (occ[nr + "," + nc] || claimed[nr + "," + nc]) break;
+          path.push({ r: nr, c: nc });
+        }
       }
-      cells.forEach(function (k) { claimed[k] = 1; });
-      a.len = L;
+      step();
+      while (t < turns && dir < 4) {
+        var p1 = (dir + 1) % 4, p3 = (dir + 3) % 4, last = path[path.length - 1];
+        var l1 = freeRunFrom(lv, occ, claimed, last.r, last.c, p1), l3 = freeRunFrom(lv, occ, claimed, last.r, last.c, p3);
+        if (l1 < 1 && l3 < 1) break;
+        dir = (l1 >= l3) ? p1 : p3;
+        step(); t++;
+      }
+      path.forEach(function (p) { claimed[p.r + "," + p.c] = 1; });
+      a.path = path;
     });
   }
   function cellsToEdge(lv, r, c, d) {
@@ -533,19 +552,28 @@
     return n;
   }
   function longArrowInner(a, occ) {
-    var lv = state.current.level, S = state.geo.S, gap = state.geo.gap, step = S + gap;
+    var S = state.geo.S, gap = state.geo.gap, step = S + gap;
     var th = THEMES[modeById(state.current.modeId).theme] || THEMES.long;
-    // Length is FIXED for the level (assigned once when the board is built) and
-    // never grows when other tiles are cleared; it is only trimmed to the board
-    // edge so it cannot overhang.
-    var L = Math.max(1, Math.min(a.len || arrowSpanCells(lv, occ, a.r, a.c, a.d), cellsToEdge(lv, a.r, a.c, a.d)));
-    var dr = DIRS[a.d][0], dc = DIRS[a.d][1];
-    var span = L * S + (L - 1) * gap, w, h, ox = 0, oy = 0;
-    if (dr === 0) { w = span; h = S; ox = (dc < 0) ? -(L - 1) * step : 0; }
-    else if (dc === 0) { w = S; h = span; oy = (dr < 0) ? -(L - 1) * step : 0; }
-    else { w = h = span; ox = (dc < 0) ? -(L - 1) * step : 0; oy = (dr < 0) ? -(L - 1) * step : 0; }
+    var col = arrowColor(th);
+    var path = (a.path && a.path.length) ? a.path : [{ r: a.r, c: a.c }];
+    var minR = a.r, maxR = a.r, minC = a.c, maxC = a.c;
+    path.forEach(function (p) { if (p.r < minR) minR = p.r; if (p.r > maxR) maxR = p.r; if (p.c < minC) minC = p.c; if (p.c > maxC) maxC = p.c; });
+    var w = (maxC - minC) * step + S, h = (maxR - minR) * step + S;
+    var ox = (minC - a.c) * step, oy = (minR - a.r) * step;
+    var pts = path.map(function (p) { return [(p.c - minC) * step + S / 2, (p.r - minR) * step + S / 2]; });
+    var head = Math.max(3, S * 0.26), hw = Math.max(1, S * 0.055);
+    var last = pts[pts.length - 1];
+    var prev = pts.length > 1 ? pts[pts.length - 2] : [last[0] - DIRS[a.d][1] * S, last[1] - DIRS[a.d][0] * S];
+    var vx = last[0] - prev[0], vy = last[1] - prev[1], vl = Math.hypot(vx, vy) || 1; vx /= vl; vy /= vl;
+    var tipx = last[0] + vx * S * 0.42, tipy = last[1] + vy * S * 0.42;
+    var bx = tipx - vx * head * 1.7, by = tipy - vy * head * 1.7;
+    var shaft = pts.length > 1 ? pts.slice(0, -1).concat([[bx, by]]) : [[last[0] - vx * S * 0.5, last[1] - vy * S * 0.5], [bx, by]];
+    var poly = shaft.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+    var px = -vy, py = vx;
     var svg = "<svg class='la' width='" + w + "' height='" + h + "' viewBox='0 0 " + w + " " + h + "' style='left:" + ox + "px;top:" + oy + "px'>" +
-      longArrowSVG(a.d, w, h, S, arrowColor(th), th.render === "curly") + "</svg>";
+      "<polyline points='" + poly + "' fill='none' stroke='" + col + "' stroke-width='" + (hw * 2) + "' stroke-linecap='round' stroke-linejoin='round'/>" +
+      "<path d='M" + tipx.toFixed(1) + " " + tipy.toFixed(1) + " L" + (bx + px * head).toFixed(1) + " " + (by + py * head).toFixed(1) +
+      " L" + (bx - px * head).toFixed(1) + " " + (by - py * head).toFixed(1) + " Z' fill='" + col + "'/></svg>";
     return svg + (a.need > 1 ? "<div class='need'>" + a.need + "</div>" : "");
   }
   function refreshLongArrows(moved) {
@@ -609,7 +637,7 @@
     }
   }
 
-  function snapshot() { return { arrows: state.arrows.map(function (a) { return { id: a.id, r: a.r, c: a.c, d: a.d, need: a.need, len: a.len }; }), moves: state.moves, hintsUsed: state.hintsUsed, nextId: state.nextId }; }
+  function snapshot() { return { arrows: state.arrows.map(function (a) { return { id: a.id, r: a.r, c: a.c, d: a.d, need: a.need, len: a.len, path: a.path }; }), moves: state.moves, hintsUsed: state.hintsUsed, nextId: state.nextId }; }
 
   function onTap(id) {
     if (state.locked || state.swallow) return;
