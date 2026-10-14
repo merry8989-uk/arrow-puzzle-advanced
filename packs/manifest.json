@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "generated": "2026-10-14",
+  "note": "Optional extra packs fetched by the app's 'Check for new packs' button. Weekly/monthly packs are offline and need no network.",
+  "packs": [
+    {
+      "id": "theme-sampler",
+      "name": "Theme Sampler Pack",
+      "version": 1,
+      "modeId": "round",
+      "url": "https://raw.githubusercontent.com/merry8989-uk/arrow-puzzle-advanced/main/packs/theme-sampler.json"
+    }
+  ]
+}

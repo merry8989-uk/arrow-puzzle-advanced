@@ -1,7 +1,6 @@
 # Arrow Puzzle Advanced
 
-A clean, offline Android arrow-puzzle game with **12,000 hand-crafted-by-generator levels**
-— 6,000 in each of two play modes — every single one guaranteed solvable.
+A clean, offline Android arrow-puzzle game with **15,000 levels across 9 modes and 8 tile looks** — plus **daily, weekly and monthly packs** that refresh on a schedule, and an **optional** online check for extra packs.
 
 <p align="center">
   <img src="docs/icon.png" width="96" alt="app icon">
@@ -12,76 +11,88 @@ A clean, offline Android arrow-puzzle game with **12,000 hand-crafted-by-generat
 Grab the signed APK from the [Releases](../../releases) page, or from [`dist/`](dist/).
 
 ```
-dist/ArrowPuzzleAdvanced-1.0.apk
+dist/ArrowPuzzleAdvanced-2.0.apk
 ```
 
-Sideload it on any Android 7.0 (API 24) or newer device. The app requests **no
-permissions at all** and works completely offline.
+Sideload it on Android 7.0 (API 24) or newer. The game works **fully offline**; the only network use is the optional "Check for new packs" button.
 
-## Two modes, one game
+## Mechanics × looks = modes
 
-Switch modes any time from **Settings**; each mode keeps its own progress.
+A **mechanic** defines the puzzle rules; a **theme** defines how tiles look. A **mode** is a curated (mechanic × theme) pairing with its own progress. The same rules with a different look is a different mode, so there are many ways to play the same kind of puzzle.
 
-**Classic** — tap an arrow and it launches off the board. It only leaves if every
-cell between it and the edge is clear, so arrows block each other and you must find
-the order that frees them. Clear the whole board.
+| Mode | Mechanic | Look |
+|------|----------|------|
+| Classic Arrows | Classic | Arrows |
+| Escape | Escape | Arrows |
+| Round Colours | Classic | Round colour bubbles |
+| Square Colours | Classic | Square colour blocks |
+| Dots | Multi (tap-count) | Dots |
+| Dotted Arrows | Multi (tap-count) | Dashed arrows |
+| Snake | Escape | Snake tiles |
+| Fruits | Classic | Fruit tiles |
+| Picture Puzzles | Classic | Object/picture tiles |
 
-**Escape** — each tap slides an arrow one step in its direction. Arrows that reach
-the edge slide off the board and are gone. Arrows that cannot move do nothing. Get
-every arrow off the board.
+### The mechanics
+
+- **Classic** — tap a tile to launch it off the board; it only leaves if the whole lane to the edge is clear. Tiles block each other, so you must find the order that frees them.
+- **Escape** — each tap slides a tile one step in its direction; tiles leave the board at the edge. Tiles that cannot move do nothing.
+- **Multi (numbered / dotted)** — each tile carries a count (1–3). A tap ticks it down; only the **final** tap must have a clear lane, and only then is the tile removed. Dots and dotted arrows both use this mechanic.
+
+### The looks
+
+Arrows, round colour bubbles, square colour blocks, dots, dashed arrows, snake tiles, fruits, and "picture" objects. Every look keeps a clear direction cue so the puzzle stays readable.
+
+## Daily, weekly and monthly content
+
+- **Daily Goal — 50 levels a day.** Each day a fresh set of 50 levels is drawn from the pools and tracked with a progress bar and streak.
+- **Weekly Pack — 50 levels.** Refreshes every ISO week.
+- **Monthly Pack — 100 levels.** A themed pack that rotates the featured mode each month (snake, round colours, square colours, dots, dotted arrows…).
+
+These are seeded from your device date, so they refresh automatically with **no network**. See [`docs/CONTENT.md`](docs/CONTENT.md).
+
+## Optional online updates
+
+Tapping **Check for new packs** (Packs screen or Settings) fetches a small manifest and downloads any newer pack into local storage, where it appears as a playable pack. If there is no connection, the app says so and the bundled weekly/monthly packs keep working. This is the *only* network use, and it is the reason the app requests the INTERNET permission.
 
 ## Features
 
-- **12,000 levels** (6,000 per mode), split into chapters of 50 with a smooth difficulty curve.
-- Boards grow from 3×3 to 9×9; later levels add static **walls** and **diagonal** arrows.
-- **Undo**, **Restart**, and a **Hint** that always points at a valid next move.
-- Per-level star rating, unlock progression, and continue-where-you-left-off — saved on device.
-- Modern dark theme, smooth slide/fly animations, works fully offline, no ads, no tracking.
+- **15,000 levels** (Classic 6,000 · Escape 6,000 · Multi 3,000), in chapters of 50, with a smooth difficulty curve from 3×3 to 9×9.
+- Later levels add static **walls** and **diagonal** tiles.
+- **Undo**, **Restart**, and a **Hint** that always points at a valid move.
+- Per-mode star ratings, unlock progression, continue-where-you-left-off, and daily/weekly/monthly pack tracking — all saved on device.
+- Dark theme, smooth animations, no ads, no tracking.
 
 ## How the levels are made
 
 Levels are **generated, not hand-drawn**, and every one is proven solvable *by construction*:
 
-- **Classic** levels are built by placing arrows one at a time, each requiring a clear
-  ray at the moment it is placed. The reverse of the placement order is therefore a
-  valid clearing order.
-- **Escape** levels are built by starting from the solved (empty) board and applying
-  *reverse* moves — spawning an arrow at the border, or stepping an arrow backwards.
-  The reverse of that move sequence is a valid forward solution.
+- **Classic / Multi** — tiles are placed one at a time, each requiring a clear lane at the moment it is placed, so the reverse of the placement order is a valid clearing order. (For Multi, the final tap of each tile has that clear lane.)
+- **Escape** — built backwards from the solved, empty board by spawning border tiles and stepping tiles back one cell; the reverse of that move sequence is a valid forward solution.
 
-The full generator lives in [`tools/level_generator/`](tools/level_generator) and the
-final 12,000 levels were independently re-verified (0 failures) before shipping.
-See [`docs/LEVELS.md`](docs/LEVELS.md) for the details.
+The generator is in [`tools/level_generator/`](tools/level_generator). All 15,000 levels were independently re-verified (0 failures) before shipping. Details in [`docs/LEVELS.md`](docs/LEVELS.md).
 
 ## Building from source
 
-The project is a standard Gradle Android project (Android Gradle Plugin 8.5, JDK 17).
+Standard Gradle Android project (Android Gradle Plugin 8.5, JDK 17).
 
 ```bash
-# Android Studio: File > Open > this folder, then Run.
-# Or from the command line:
-./gradlew assembleDebug      # debug APK -> app/build/outputs/apk/debug/
-./gradlew assembleRelease    # unsigned release APK
-```
-
-A dependency-free, Gradle-less build is also included, using only the Android SDK
-build-tools (aapt2 → d8 → zipalign → apksigner):
-
-```bash
-ANDROID_HOME=/path/to/android-sdk bash tools/build-apk.sh
+./gradlew assembleDebug        # debug APK
+./gradlew assembleRelease      # unsigned release APK
+ANDROID_HOME=/path/sdk bash tools/build-apk.sh   # dependency-free build
 ```
 
 ## Project layout
 
 ```
-app/src/main/java/…/MainActivity.java   WebView host + back-button bridge
-app/src/main/assets/www/                the entire game (HTML/CSS/JS)
-  ├─ game_core.js                       pure puzzle logic + escape solver
-  ├─ game.js                            UI, screens, animation, progress
-  ├─ levels_classic.js                  6,000 classic levels
-  └─ levels_escape.js                   6,000 escape levels
-tools/level_generator/                  Python level generator + verifier
-tools/build-apk.sh                      Gradle-less APK build
+app/src/main/assets/www/     the whole game (HTML/CSS/JS)
+  ├─ game_core.js            pure puzzle logic (classic, escape, multi)
+  ├─ game.js                 modes, themes, packs, screens, animation
+  ├─ levels_classic.js       6,000 classic levels
+  ├─ levels_escape_1/2.js    6,000 escape levels (solutions packed)
+  └─ levels_multi.js         3,000 multi levels
+packs/                       optional online pack manifest + sample pack
+tools/level_generator/       Python level generator + verifier + asset builder
+tools/build-apk.sh           Gradle-less APK build
 ```
 
 ## License

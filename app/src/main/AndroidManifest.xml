@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- No INTERNET permission: the game is fully offline. -->
+    <!-- The game is fully offline by default. INTERNET is used ONLY when the
+         user taps "Check for new packs" on the Packs screen; nothing else ever
+         touches the network. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:allowBackup="true"
