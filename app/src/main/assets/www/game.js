@@ -32,7 +32,8 @@
     picture: { name: "Picture", glyph: "\u2B50", board: "dark", render: "tile" },
     black: { name: "Black arrows", glyph: "\u2B95", board: "light", render: "borderless", color: "#171717" },
     long: { name: "Long arrows", glyph: "\u27A1", board: "light", render: "long", color: "#8a6a4a" },
-    neon: { name: "Neon arrows", glyph: "\u2B95", board: "dark", render: "borderless", color: "#66e0ff" }
+    neon: { name: "Neon arrows", glyph: "\u2B95", board: "dark", render: "borderless", color: "#66e0ff" },
+    curly: { name: "Curly arrows", glyph: "\u219D", board: "light", render: "curly", color: "#8a6a4a" }
   };
   var MODES = [
     { id: "classic_arrow", name: "Classic Arrows", mech: "classic", theme: "arrow", desc: "Tap an arrow to launch it off the board when its path is clear." },
@@ -48,7 +49,9 @@
     { id: "black_escape", name: "Black Escape", mech: "escape", theme: "black", desc: "Borderless black arrows that slide and leave at the edge." },
     { id: "long", name: "Long Arrows", mech: "classic", theme: "long", desc: "Long thin arrows that clear when their lane opens." },
     { id: "long_escape", name: "Long Escape", mech: "escape", theme: "long", desc: "Long thin arrows that slide one step per tap." },
-    { id: "neon", name: "Neon Arrows", mech: "classic", theme: "neon", desc: "Glowing borderless arrows on a dark board." }
+    { id: "neon", name: "Neon Arrows", mech: "classic", theme: "neon", desc: "Glowing borderless arrows on a dark board." },
+    { id: "curly", name: "Curly Arrows", mech: "classic", theme: "curly", desc: "Long curly arrows that clear when their lane opens." },
+    { id: "curly_escape", name: "Curly Escape", mech: "escape", theme: "curly", desc: "Long curly arrows that slide one step per tap." }
   ];
 
   // Hard challenge packs, drawn from the toughest level ranges (all offline).
@@ -368,6 +371,10 @@
       html = "<svg class='glong' viewBox='0 0 24 24' style='transform:rotate(" + ang + "deg)'>" +
         "<line x1='12' y1='22.6' x2='12' y2='8' stroke='" + th.color + "' stroke-width='2.9' stroke-linecap='round'/>" +
         "<path d='M12 1 L18.6 10.2 L5.4 10.2 Z' fill='" + th.color + "'/></svg>";
+    } else if (th.render === "curly") {
+      html = "<svg class='glong' viewBox='0 0 24 24' style='transform:rotate(" + ang + "deg)'>" +
+        "<path d='M12 22.6 C 4 21 4 13.6 12 13.4 C 19.6 13.2 19.6 7.6 12.4 7.8' fill='none' stroke='" + th.color + "' stroke-width='2.7' stroke-linecap='round'/>" +
+        "<path d='M12.6 1.2 L18.8 9.8 L6.4 9.8 Z' fill='" + th.color + "'/></svg>";
     } else if (themeId === "fruits") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + FRUIT[d] + "</div>" + cue;
     else if (themeId === "picture") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + PIC[d] + "</div>" + cue;
     else if (themeId === "dotted") html = "<div class='body' style='--c:" + c + "'></div>" + cue;

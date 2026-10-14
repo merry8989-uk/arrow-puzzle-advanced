@@ -1,6 +1,6 @@
 # Arrow Puzzle Advanced
 
-A clean, offline Android puzzle **game** with **15,000 levels across 14 modes and 11 tile looks**, a **coin economy** with paid hints, **daily / weekly / monthly packs**, and hard **challenge** packs. Pinch-zoom the board, switch between a dark and a white theme, and celebrate solves with fireworks.
+A clean, offline Android puzzle **game** with **15,000 levels across 16 modes and 12 tile looks**, a **coin economy** with paid hints, **daily / weekly / monthly packs**, and hard **challenge** packs. Pinch-zoom the board, switch between a dark and a white theme, and celebrate solves with fireworks.
 
 <p align="center">
   <img src="docs/icon.png" width="96" alt="app icon">
@@ -36,6 +36,8 @@ A **mechanic** defines the rules; a **theme** defines how tiles look. A **mode**
 | **Long Arrows** | Classic | Long thin arrows (light board) |
 | **Long Escape** | Escape | Long thin arrows (light board) |
 | **Neon Arrows** | Classic | Glowing borderless arrows |
+| **Curly Arrows** | Classic | Long curly / bent arrows (light board) |
+| **Curly Escape** | Escape | Long curly arrows that slide |
 
 ### Mechanics
 - **Classic** — tap a tile to launch it off the board; it only leaves if the whole lane to the edge is clear.
