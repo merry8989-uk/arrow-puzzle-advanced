@@ -9,6 +9,7 @@ import android.webkit.ValueCallback;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Toast;
 
 /**
  * Arrow Puzzle Advanced - a fully offline WebView game host.
@@ -59,15 +60,25 @@ public class MainActivity extends Activity {
         }
     }
 
+    private long lastBack = 0;
+
     @Override
     public void onBackPressed() {
-        // Ask the page to navigate up; if it can't (we're on Home), exit.
+        // Let the page navigate up first. Only when we are already on Home does
+        // Back arm the exit, and then a SECOND press within 2 seconds is needed
+        // so a single tap can never close the game by accident.
         web.evaluateJavascript(
             "(window.androidBack && window.androidBack()) ? 'true' : 'false'",
             new ValueCallback<String>() {
                 @Override public void onReceiveValue(String value) {
-                    if (!"true".equals(value)) {
+                    if ("true".equals(value)) return;   // the page handled it
+                    long now = System.currentTimeMillis();
+                    if (now - lastBack < 2000) {
                         finish();
+                    } else {
+                        lastBack = now;
+                        Toast.makeText(MainActivity.this,
+                                "Press back again to exit", Toast.LENGTH_SHORT).show();
                     }
                 }
             });

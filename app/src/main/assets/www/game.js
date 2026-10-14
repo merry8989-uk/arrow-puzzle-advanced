@@ -22,10 +22,17 @@
     multi: { files: [["levels_multi.js", "LEVELS_MULTI"]], size: 3000, sol: true }
   };
   var THEMES = {
-    arrow: { name: "Arrows", glyph: "\u27A4" }, round: { name: "Round colours", glyph: "\u25CF" },
-    square: { name: "Square colours", glyph: "\u25A0" }, dots: { name: "Dots", glyph: "\u25CF" },
-    dotted: { name: "Dotted", glyph: "\u22EF" }, snake: { name: "Snake", glyph: "\u301C" },
-    fruits: { name: "Fruits", glyph: "\uD83C\uDF4E" }, picture: { name: "Picture", glyph: "\u2B50" }
+    arrow: { name: "Arrows", glyph: "\u27A4", board: "dark", render: "tile" },
+    round: { name: "Round colours", glyph: "\u25CF", board: "dark", render: "tile" },
+    square: { name: "Square colours", glyph: "\u25A0", board: "dark", render: "tile" },
+    dots: { name: "Dots", glyph: "\u25CF", board: "dark", render: "tile" },
+    dotted: { name: "Dotted", glyph: "\u22EF", board: "dark", render: "tile" },
+    snake: { name: "Snake", glyph: "\u301C", board: "dark", render: "tile" },
+    fruits: { name: "Fruits", glyph: "\uD83C\uDF4E", board: "dark", render: "tile" },
+    picture: { name: "Picture", glyph: "\u2B50", board: "dark", render: "tile" },
+    black: { name: "Black arrows", glyph: "\u2B95", board: "light", render: "borderless", color: "#171717" },
+    long: { name: "Long arrows", glyph: "\u27A1", board: "light", render: "long", color: "#8a6a4a" },
+    neon: { name: "Neon arrows", glyph: "\u2B95", board: "dark", render: "borderless", color: "#66e0ff" }
   };
   var MODES = [
     { id: "classic_arrow", name: "Classic Arrows", mech: "classic", theme: "arrow", desc: "Tap an arrow to launch it off the board when its path is clear." },
@@ -36,9 +43,24 @@
     { id: "dotted", name: "Dotted Arrows", mech: "multi", theme: "dotted", desc: "Dashed arrows need two taps \u2014 the final one clears the lane." },
     { id: "snake", name: "Snake", mech: "escape", theme: "snake", desc: "Snake tiles slither one step per tap and leave at the edge." },
     { id: "fruits", name: "Fruits", mech: "classic", theme: "fruits", desc: "Fruit tiles that clear when their lane is open." },
-    { id: "picture", name: "Picture Puzzles", mech: "classic", theme: "picture", desc: "Objects that look like pictures but play and clear like puzzles." }
+    { id: "picture", name: "Picture Puzzles", mech: "classic", theme: "picture", desc: "Objects that look like pictures but play and clear like puzzles." },
+    { id: "black", name: "Black Arrows", mech: "classic", theme: "black", desc: "Borderless black arrows on a light board." },
+    { id: "black_escape", name: "Black Escape", mech: "escape", theme: "black", desc: "Borderless black arrows that slide and leave at the edge." },
+    { id: "long", name: "Long Arrows", mech: "classic", theme: "long", desc: "Long thin arrows that clear when their lane opens." },
+    { id: "long_escape", name: "Long Escape", mech: "escape", theme: "long", desc: "Long thin arrows that slide one step per tap." },
+    { id: "neon", name: "Neon Arrows", mech: "classic", theme: "neon", desc: "Glowing borderless arrows on a dark board." }
+  ];
+
+  // Hard challenge packs, drawn from the toughest level ranges (all offline).
+  var CHALLENGES = [
+    { id: "expert_classic", name: "Expert Classic", theme: "arrow", desc: "The hardest classic layouts." },
+    { id: "expert_escape", name: "Expert Escape", theme: "arrow", desc: "The hardest escape layouts." },
+    { id: "multi_master", name: "Multi Master", theme: "dots", desc: "High-count multi tiles." },
+    { id: "gauntlet", name: "Gauntlet", theme: "neon", desc: "A brutal mix of every mechanic." },
+    { id: "daily_hard", name: "Daily Challenge", theme: "black", desc: "A fresh hard set every day." }
   ];
   var CHAPTER = 50, DAILY_COUNT = 50, WEEKLY_COUNT = 50, MONTHLY_COUNT = 100;
+  var HINT_COST = 2000, MAX_COINS = 100;
   var DEFAULT_MANIFEST = "https://raw.githubusercontent.com/merry8989-uk/arrow-puzzle-advanced/main/packs/manifest.json";
 
   var state = {
@@ -68,10 +90,15 @@
   /* ---------- progress ---------- */
   function blankProgress() {
     return { modes: {}, packs: { daily: { key: "", done: {} }, weekly: { key: "", done: {} }, monthly: { key: "", done: {} } },
-             online: { packs: {}, checked: null } };
+             online: { packs: {}, checked: null }, coins: 0, challenges: {}, settings: { theme: "dark", sound: true } };
   }
   function loadProgress() {
-    try { var raw = localStorage.getItem("apa_progress_v2"); if (raw) { var p = JSON.parse(raw); if (p && p.modes) return p; } } catch (e) {}
+    try { var raw = localStorage.getItem("apa_progress_v2");
+      if (raw) { var p = JSON.parse(raw);
+        if (p && p.modes) {
+          if (p.coins == null) p.coins = 0; if (!p.challenges) p.challenges = {};
+          if (!p.settings) p.settings = { theme: "dark", sound: true };
+          return p; } } } catch (e) {}
     return blankProgress();
   }
   function saveProgress() { try { localStorage.setItem("apa_progress_v2", JSON.stringify(state.progress)); } catch (e) { toast("Storage full"); } }
@@ -103,7 +130,8 @@
   /* ---------- screens ---------- */
   function showScreen(n) {
     state.screen = n;
-    ["home", "modes", "levels", "game", "daily", "packs", "pack", "settings"].forEach(function (s) {
+    if (n !== "game" && state.timer) { clearInterval(state.timer); state.timer = null; }
+    ["home", "modes", "levels", "game", "daily", "packs", "pack", "settings", "challenges"].forEach(function (s) {
       $("screen-" + s).classList.toggle("active", s === n);
     });
     if (n === "home") renderHome();
@@ -112,6 +140,7 @@
     if (n === "daily") renderDaily();
     if (n === "packs") renderPacks();
     if (n === "settings") renderSettings();
+    if (n === "challenges") renderChallenges();
   }
 
   /* ---------- home ---------- */
@@ -128,6 +157,7 @@
     $("daily-mini").innerHTML = "<b>Daily goal</b><div class='progress'><div class='bar' style='width:" +
       Math.round(dn / DAILY_COUNT * 100) + "%'></div></div><b>" + dn + "/" + DAILY_COUNT + "</b>";
     $("packs-sub").textContent = "Weekly & Monthly";
+    renderCoins();
   }
   function totalLevels() { var t = 0; for (var k in MECHANICS) t += MECHANICS[k].size; return t; }
 
@@ -296,6 +326,9 @@
     state.arrows = lv.arrows.map(function (a, i) { return { id: i + 1, r: a[0], c: a[1], d: a[2], need: a.length > 3 ? a[3] : 1 }; });
     state.nextId = lv.arrows.length + 1;
     state.history = []; state.moves = 0; state.hintsUsed = 0; state.locked = false;
+    state.startTime = Date.now(); resetZoom();
+    if (state.timer) clearInterval(state.timer);
+    state.timer = setInterval(function () { var s = Math.round((Date.now() - state.startTime) / 1000); var e = $("stat-time"); if (e) e.textContent = s + "s"; }, 500);
     state.solArr = decodeSol(lv.sol, lv.cols);
     $("game-level").textContent = ctx.type === "campaign" ? "Level " + (index + 1) : "Pack " + (ctx.slot + 1);
     $("game-mode").textContent = m.name;
@@ -323,13 +356,19 @@
   }
   function cellX(c) { return state.geo.pad + c * (state.geo.S + state.geo.gap); }
   function cellY(r) { return state.geo.pad + r * (state.geo.S + state.geo.gap); }
-  function tileInner(theme, d, need) {
-    var c = DIR_COLOR[d], ang = DIR_ANGLE[d];
+  function tileInner(themeId, d, need) {
+    var th = THEMES[themeId] || THEMES.arrow, c = DIR_COLOR[d], ang = DIR_ANGLE[d];
     var cue = "<svg class='cue' viewBox='0 0 24 24' style='transform:rotate(" + ang + "deg)'><path d='M12 2.4 L22 14.2 L15.4 14.2 L15.4 21.6 L8.6 21.6 L8.6 14.2 L2 14.2 Z' fill='rgba(10,14,22,.82)'/></svg>";
     var html;
-    if (theme === "fruits") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + FRUIT[d] + "</div>" + cue;
-    else if (theme === "picture") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + PIC[d] + "</div>" + cue;
-    else if (theme === "dotted") html = "<div class='body' style='--c:" + c + "'></div>" + cue;
+    if (th.render === "borderless") {
+      html = "<svg class='garrow' viewBox='0 0 24 24' style='transform:rotate(" + ang + "deg)'><path d='M12 1.6 L22.6 12.8 L16.7 12.8 L16.7 22.4 L7.3 22.4 L7.3 12.8 L1.4 12.8 Z' fill='" + th.color + "'/></svg>";
+    } else if (th.render === "long") {
+      html = "<svg class='glong' viewBox='0 0 24 24' style='transform:rotate(" + ang + "deg)'>" +
+        "<line x1='12' y1='22.6' x2='12' y2='8' stroke='" + th.color + "' stroke-width='2.9' stroke-linecap='round'/>" +
+        "<path d='M12 1 L18.6 10.2 L5.4 10.2 Z' fill='" + th.color + "'/></svg>";
+    } else if (themeId === "fruits") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + FRUIT[d] + "</div>" + cue;
+    else if (themeId === "picture") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + PIC[d] + "</div>" + cue;
+    else if (themeId === "dotted") html = "<div class='body' style='--c:" + c + "'></div>" + cue;
     else html = "<div class='body' style='background:" + c + "'></div>" + cue;
     if (need && need > 1) html += "<div class='need'>" + need + "</div>";
     return html;
@@ -341,6 +380,7 @@
     var H = 2 * state.geo.pad + R * state.geo.S + (R - 1) * state.geo.gap;
     board.style.width = W + "px"; board.style.height = H + "px";
     board.style.setProperty("--s", state.geo.S + "px");
+    board.className = "board board-" + ((THEMES[m.theme] && THEMES[m.theme].board) || "dark");
     board.innerHTML = ""; state.els = {};
     for (var r = 0; r < R; r++) for (var c = 0; c < Cc; c++) {
       var cell = document.createElement("div"); cell.className = "cellbg";
@@ -384,7 +424,7 @@
   function snapshot() { return { arrows: state.arrows.map(function (a) { return { id: a.id, r: a.r, c: a.c, d: a.d, need: a.need }; }), moves: state.moves, hintsUsed: state.hintsUsed, nextId: state.nextId }; }
 
   function onTap(id) {
-    if (state.locked) return;
+    if (state.locked || state.swallow) return;
     var idx = state.arrows.findIndex(function (a) { return a.id === id; });
     if (idx < 0) return;
     var lv = state.current.level, mech = modeById(state.current.modeId).mech;
@@ -433,11 +473,20 @@
     } else if (cur.ctx.type === "online") {
       var op = state.progress.online.packs[cur.ctx.packId];
       if (op) { op.done = op.done || {}; op.done[cur.ctx.slot] = 1; }
+    } else if (cur.ctx.type === "challenge") {
+      var ch = state.progress.challenges[cur.ctx.cid] || (state.progress.challenges[cur.ctx.cid] = { done: {} });
+      ch.done[cur.ctx.slot] = 1;
     }
-    saveProgress();
+    if (state.timer) { clearInterval(state.timer); state.timer = null; }
+    var secs = Math.max(1, Math.round((Date.now() - (state.startTime || Date.now())) / 1000));
+    var award = coinAward(stars, secs, state.moves, lv.par);
+    state.progress.coins = (state.progress.coins || 0) + award;
+    saveProgress(); renderCoins();
+    fireworks(); firecracker();
     $("win-stars").innerHTML = "\u2605".repeat(stars) + "\u2606".repeat(3 - stars);
-    $("win-title").textContent = cur.ctx.type === "campaign" ? "Level " + id + " complete" : "Pack level complete";
-    $("win-sub").textContent = "Solved in " + state.moves + " moves (par " + lv.par + ")";
+    $("win-title").textContent = cur.ctx.type === "campaign" ? "Level " + id + " complete" : "Puzzle complete";
+    $("win-sub").textContent = "Solved in " + state.moves + " moves \u00b7 " + secs + "s";
+    var wc = $("win-coins"); if (wc) wc.textContent = "+" + award + " coins";
     $("win-next").style.display = (cur.ctx.type === "campaign" ? id < MECHANICS[modeById(cur.modeId).mech].size : cur.ctx.slot + 1 < cur.ctx.count) ? "" : "none";
     $("win").classList.add("show");
   }
@@ -446,6 +495,7 @@
     if (cur.ctx.type === "campaign") { var size = MECHANICS[modeById(cur.modeId).mech].size; if (cur.index + 1 < size) playLevel(cur.modeId, cur.index + 1, cur.levelsArr, cur.ctx); else showScreen("levels"); }
     else if (cur.ctx.type === "pack") { if (cur.ctx.slot + 1 < cur.ctx.count) playPackItem(cur.ctx.kind, cur.ctx.count, cur.ctx.slot + 1); else showScreen(cur.ctx.kind === "daily" ? "daily" : "packs"); }
     else if (cur.ctx.type === "online") { var p = state.progress.online.packs[cur.ctx.packId]; if (cur.ctx.slot + 1 < cur.ctx.count) playLevel(modeById(p.modeId || "classic_arrow").id, cur.ctx.slot + 1, p.levels, { type: "online", packId: cur.ctx.packId, slot: cur.ctx.slot + 1, count: cur.ctx.count }); else showScreen("packs"); }
+    else if (cur.ctx.type === "challenge") { if (cur.ctx.slot + 1 < cur.ctx.count) playChallengeItem(cur.ctx.cid, cur.ctx.slot + 1); else showScreen("challenges"); }
   }
 
   /* ---------- hint ---------- */
@@ -473,10 +523,77 @@
   function doHint() {
     if (state.locked || !state.current) return;
     var cell = hintCell(); if (!cell) { toast("No hint available here"); return; }
+    if ((state.progress.coins || 0) < HINT_COST) { toast("A hint costs " + HINT_COST + " coins \u2014 you have " + (state.progress.coins || 0)); return; }
+    state.progress.coins -= HINT_COST; saveProgress(); renderCoins();
     var a = state.arrows.find(function (x) { return x.r === cell[0] && x.c === cell[1]; }); if (!a) return;
     state.hintsUsed++; updateStats();
     var el = state.els[a.id]; if (el) { el.classList.remove("hintpulse"); void el.offsetWidth; el.classList.add("hintpulse"); }
     $("hint-note").textContent = "Hint: tap the glowing tile.";
+  }
+
+  /* ---------- coins ---------- */
+  function coinAward(stars, secs, moves, par) {
+    var c = stars * 28;                       // 28 / 56 / 84
+    if (moves <= par) c += 8;                 // solved efficiently
+    var target = Math.max(20, par * 3);       // target seconds
+    if (secs <= target) c += 8; else if (secs <= target * 2) c += 4;
+    return Math.min(MAX_COINS, Math.round(c));
+  }
+  function renderCoins() {
+    var v = (state.progress.coins || 0);
+    var a = $("home-coins"), b = $("stat-coins");
+    if (a) a.textContent = v.toLocaleString("en-IN");
+    if (b) b.textContent = v.toLocaleString("en-IN");
+  }
+
+  /* ---------- challenges ---------- */
+  function hardItems(seed, modeId, from, to, count) {
+    var rng = mulberry32(hashStr(seed)), items = [];
+    var pool = [["classic_arrow", 5200, 6000], ["escape_arrow", 5200, 6000], ["dots", 2500, 3000]];
+    for (var i = 0; i < count; i++) {
+      if (modeId) items.push({ modeId: modeId, levelId: from + Math.floor(rng() * (to - from)) });
+      else { var p = pool[Math.floor(rng() * pool.length)]; items.push({ modeId: p[0], levelId: p[1] + Math.floor(rng() * (p[2] - p[1])) }); }
+    }
+    return items;
+  }
+  function challengeItems(c) {
+    if (c.id === "gauntlet") return hardItems("gauntlet", null, 0, 0, 60);
+    if (c.id === "daily_hard") return hardItems("daily-" + dateKey(new Date()), null, 0, 0, 30);
+    var r = { expert_classic: ["classic_arrow", 5200, 6000, 50], expert_escape: ["escape_arrow", 5200, 6000, 50], multi_master: ["dots", 2500, 3000, 50] }[c.id];
+    return hardItems(c.id, r[0], r[1], r[2], r[3]);
+  }
+  function challengeDone(cid) { var ch = state.progress.challenges[cid]; return ch ? Object.keys(ch.done).length : 0; }
+  function renderChallenges() {
+    var box = $("challenge-list"); if (!box) return; box.innerHTML = "";
+    CHALLENGES.forEach(function (c) {
+      var items = challengeItems(c), done = challengeDone(c.id);
+      var el = document.createElement("div"); el.className = "mode-item";
+      el.innerHTML = "<div class='mi-icon' style='background:#0d1320;border:1px solid #243149'>" + themeIcon(c.theme) + "</div>" +
+        "<div class='mi-text'><div class='mi-name'>" + c.name + "</div><div class='mi-desc'>" + c.desc + "</div>" +
+        "<div class='mi-tag'>" + done + "/" + items.length + " cleared</div></div><div class='mi-go'>\u203A</div>";
+      el.onclick = function () { openChallenge(c); };
+      box.appendChild(el);
+    });
+  }
+  function openChallenge(c) {
+    var items = challengeItems(c), done = (state.progress.challenges[c.id] || {}).done || {};
+    $("pack-title").textContent = c.name;
+    $("pack-sub").textContent = Object.keys(done).length + " / " + items.length + " cleared";
+    var box = $("pack-list"); box.innerHTML = "";
+    items.forEach(function (it, i) {
+      var m = modeById(it.modeId), ok = !!done[i];
+      var el = document.createElement("div"); el.className = "pack-row" + (ok ? " done" : "");
+      el.innerHTML = "<div class='pr-no'>" + (i + 1) + "</div><div class='pr-txt'><div class='pr-mode'>" + m.name +
+        "</div><div class='pr-meta'>level " + it.levelId + "</div></div>" + (ok ? "<div class='pr-check'>\u2713</div>" : "<div class='pr-go'>\u203A</div>");
+      el.onclick = function () { playChallengeItem(c.id, i); };
+      box.appendChild(el);
+    });
+    showScreen("pack");
+  }
+  function playChallengeItem(cid, slot) {
+    var c = null; for (var i = 0; i < CHALLENGES.length; i++) if (CHALLENGES[i].id === cid) c = CHALLENGES[i];
+    var items = challengeItems(c), it = items[slot], m = modeById(it.modeId);
+    ensureLevels(m.mech, function () { playLevel(m.id, it.levelId - 1, state.data[m.mech], { type: "challenge", cid: cid, slot: slot, count: items.length }); });
   }
 
   /* ---------- online updates (optional) ---------- */
@@ -510,6 +627,101 @@
       box.appendChild(b);
     });
     $("content-info").textContent = totalLevels().toLocaleString("en-IN") + " bundled puzzles. Daily, weekly and monthly packs refresh automatically from your device date. Online check is optional.";
+    var th = (state.progress.settings && state.progress.settings.theme) || "dark";
+    document.querySelectorAll("#theme-seg .seg-btn").forEach(function (b) { b.classList.toggle("sel", b.getAttribute("data-theme") === th); });
+    var st = $("sound-toggle");
+    if (st) st.textContent = "Fireworks sound: " + ((state.progress.settings && state.progress.settings.sound === false) ? "Off" : "On");
+    var ci = $("coins-info");
+    if (ci) ci.textContent = "You have " + (state.progress.coins || 0).toLocaleString("en-IN") + " coins. Earn up to 100 per puzzle; a hint costs 2000.";
+  }
+
+  /* ---------- app theme ---------- */
+  function resolvedTheme() {
+    var t = (state.progress.settings && state.progress.settings.theme) || "dark";
+    if (t === "auto") { try { return matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"; } catch (e) { return "dark"; } }
+    return t;
+  }
+  function applyTheme() {
+    var r = resolvedTheme();
+    document.documentElement.setAttribute("data-theme", r);
+    var t = (state.progress.settings && state.progress.settings.theme) || "dark";
+    var lbl = $("theme-sub");
+    if (lbl) lbl.textContent = (t === "auto" ? "Auto (" + r + ")" : (r === "light" ? "White theme" : "Dark theme"));
+  }
+
+  /* ---------- zoom & pan ---------- */
+  var zoom = { s: 1, x: 0, y: 0 }, drag = { on: false, moved: 0, x: 0, y: 0, pinch: 0, s0: 1 };
+  function applyZoom() { var b = $("board"); if (b) b.style.transform = "translate(" + zoom.x + "px," + zoom.y + "px) scale(" + zoom.s + ")"; }
+  function resetZoom() { zoom = { s: 1, x: 0, y: 0 }; applyZoom(); }
+  function setZoom(s) { zoom.s = Math.max(0.6, Math.min(4, s)); clampPan(); applyZoom(); }
+  function clampPan() {
+    var b = $("board"); if (!b) return;
+    var mx = 0.9 * b.offsetWidth * (zoom.s - 1) + 40, my = 0.9 * b.offsetHeight * (zoom.s - 1) + 40;
+    zoom.x = Math.max(-mx, Math.min(mx, zoom.x)); zoom.y = Math.max(-my, Math.min(my, zoom.y));
+  }
+  function initZoom() {
+    var area = $("board-area"); if (!area || area._zi) return; area._zi = true;
+    function dist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
+    area.addEventListener("touchstart", function (e) {
+      if (e.touches.length === 2) { drag.pinch = dist(e.touches); drag.s0 = zoom.s; drag.moved = 99; }
+      else if (e.touches.length === 1) { drag.on = true; drag.moved = 0; drag.x = e.touches[0].clientX; drag.y = e.touches[0].clientY; }
+    }, { passive: true });
+    area.addEventListener("touchmove", function (e) {
+      if (e.touches.length === 2) { if (drag.pinch) setZoom(drag.s0 * dist(e.touches) / drag.pinch); e.preventDefault(); }
+      else if (e.touches.length === 1 && drag.on) {
+        var dx = e.touches[0].clientX - drag.x, dy = e.touches[0].clientY - drag.y;
+        drag.moved += Math.abs(dx) + Math.abs(dy); drag.x = e.touches[0].clientX; drag.y = e.touches[0].clientY;
+        if (zoom.s > 1.01) { zoom.x += dx; zoom.y += dy; clampPan(); applyZoom(); e.preventDefault(); }
+      }
+    }, { passive: false });
+    area.addEventListener("touchend", function () {
+      if (drag.moved > 12) { state.swallow = true; setTimeout(function () { state.swallow = false; }, 60); }
+      drag.on = false; drag.pinch = 0;
+    });
+    area.addEventListener("wheel", function (e) { setZoom(zoom.s * (e.deltaY < 0 ? 1.12 : 0.9)); e.preventDefault(); }, { passive: false });
+    applyZoom();
+  }
+
+  /* ---------- fireworks + sound ---------- */
+  function fireworks() {
+    var cv = $("fx"); if (!cv) return;
+    var ctx = cv.getContext && cv.getContext("2d"); if (!ctx) return;
+    cv.width = window.innerWidth; cv.height = window.innerHeight; cv.style.display = "block";
+    var parts = [], bursts = 0, t0 = performance.now(), colors = ["#ffd166", "#ff6b6b", "#5b8cff", "#37d39b", "#c77dff", "#4dd0e1", "#ffb703"];
+    function burst(x, y, col) { for (var i = 0; i < 70; i++) { var a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 5; parts.push({ x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, c: col }); } }
+    burst(cv.width * 0.5, cv.height * 0.34, colors[Math.floor(Math.random() * colors.length)]);
+    (function loop(now) {
+      ctx.clearRect(0, 0, cv.width, cv.height); ctx.globalCompositeOperation = "lighter";
+      for (var i = parts.length - 1; i >= 0; i--) {
+        var p = parts[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.06; p.vx *= 0.985; p.vy *= 0.985; p.life -= 0.012;
+        if (p.life <= 0) { parts.splice(i, 1); continue; }
+        ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x, p.y, 2.3, 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
+      if (now - t0 < 2800) {
+        if (Math.random() < 0.08 && bursts < 12) { bursts++; burst(Math.random() * cv.width, Math.random() * cv.height * 0.55, colors[Math.floor(Math.random() * colors.length)]); }
+        requestAnimationFrame(loop);
+      } else { cv.style.display = "none"; ctx.clearRect(0, 0, cv.width, cv.height); }
+    })(t0);
+  }
+  function firecracker() {
+    if (state.progress.settings && state.progress.settings.sound === false) return;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      state.actx = state.actx || new AC(); var ac = state.actx; if (ac.state === "suspended") ac.resume();
+      var pops = 12 + Math.floor(Math.random() * 8);
+      for (var i = 0; i < pops; i++) (function (i) {
+        setTimeout(function () {
+          var dur = 0.04 + Math.random() * 0.06, n = Math.floor(ac.sampleRate * dur);
+          var buf = ac.createBuffer(1, n, ac.sampleRate), d = buf.getChannelData(0);
+          for (var j = 0; j < n; j++) d[j] = (Math.random() * 2 - 1) * Math.pow(1 - j / n, 3);
+          var src = ac.createBufferSource(); src.buffer = buf;
+          var f = ac.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1200 + Math.random() * 2600; f.Q.value = 0.7;
+          var g = ac.createGain(); g.gain.value = 0.22;
+          src.connect(f); f.connect(g); g.connect(ac.destination); src.start();
+        }, i * 65 + Math.random() * 40);
+      })(i);
+    } catch (e) {}
   }
 
   /* ---------- wiring ---------- */
@@ -519,14 +731,29 @@
     $("btn-daily").onclick = function () { showScreen("daily"); };
     $("btn-packs").onclick = function () { showScreen("packs"); };
     $("btn-settings").onclick = function () { showScreen("settings"); };
+    $("btn-challenges").onclick = function () { showScreen("challenges"); };
+    $("pack-back").onclick = function () { var c = state.current; showScreen(c && c.ctx && c.ctx.type === "challenge" ? "challenges" : "packs"); };
+    $("zoom-in").onclick = function () { setZoom(zoom.s * 1.25); };
+    $("zoom-out").onclick = function () { setZoom(zoom.s / 1.25); };
+    $("zoom-reset").onclick = resetZoom;
+    document.querySelectorAll("#theme-seg .seg-btn").forEach(function (b) {
+      b.onclick = function () {
+        state.progress.settings.theme = b.getAttribute("data-theme");
+        saveProgress(); applyTheme(); renderSettings(); toast("Theme: " + b.textContent);
+      };
+    });
+    $("sound-toggle").onclick = function () {
+      var cur = state.progress.settings.sound !== false;
+      state.progress.settings.sound = !cur; saveProgress(); renderSettings();
+      toast("Fireworks sound " + (!cur ? "on" : "off"));
+    };
     document.querySelectorAll("[data-nav]").forEach(function (b) { b.onclick = function () { showScreen(b.getAttribute("data-nav")); }; });
     $("chap-prev").onclick = function () { if (state.chapter > 1) { state.chapter--; renderLevels(); } };
     $("chap-next").onclick = function () { var size = MECHANICS[modeById(state.mode).mech].size; if (state.chapter < Math.ceil(size / CHAPTER)) { state.chapter++; renderLevels(); } };
-    $("game-back").onclick = function () { var c = state.current; if (!c) return showScreen("home"); if (c.ctx.type === "campaign") showScreen("levels"); else if (c.ctx.kind === "daily") showScreen("daily"); else showScreen("pack"); };
+    $("game-back").onclick = function () { var c = state.current; if (!c) return showScreen("home"); if (c.ctx.type === "campaign") showScreen("levels"); else if (c.ctx.type === "challenge") showScreen("challenges"); else if (c.ctx.kind === "daily") showScreen("daily"); else showScreen("pack"); };
     $("btn-undo").onclick = undo;
     $("btn-hint").onclick = doHint;
     $("btn-restart").onclick = restart;
-    $("game-restart-top").onclick = restart;
     $("win-next").onclick = nextLevel;
     $("win-replay").onclick = function () { $("win").classList.remove("show"); restart(); };
     $("upd-check").onclick = checkUpdates;
@@ -543,12 +770,17 @@
   }
 
   if (window.__APA_DEBUG) {
-    window.__APA = { state: state, MODES: MODES, MECHANICS: MECHANICS, playLevel: playLevel, playCampaign: playCampaign,
-      playPackItem: playPackItem, onTap: onTap, doHint: doHint, undo: undo, restart: restart, showScreen: showScreen,
-      ensureLevels: ensureLevels, hintCell: hintCell, getPack: getPack, buildPack: buildPack, dateKey: dateKey, weekKey: weekKey, monthKey: monthKey };
+    window.__APA = { state: state, MODES: MODES, MECHANICS: MECHANICS, THEMES: THEMES, CHALLENGES: CHALLENGES,
+      playLevel: playLevel, playCampaign: playCampaign, playPackItem: playPackItem, playChallengeItem: playChallengeItem,
+      openChallenge: openChallenge, challengeItems: challengeItems, onTap: onTap, doHint: doHint, undo: undo, restart: restart,
+      showScreen: showScreen, ensureLevels: ensureLevels, hintCell: hintCell, getPack: getPack, buildPack: buildPack,
+      coinAward: coinAward, applyTheme: applyTheme, setZoom: setZoom, resetZoom: resetZoom,
+      dateKey: dateKey, weekKey: weekKey, monthKey: monthKey };
   }
 
   wire();
+  applyTheme(); initZoom();
+  try { matchMedia("(prefers-color-scheme: light)").addEventListener("change", function () { if (((state.progress.settings && state.progress.settings.theme) || "dark") === "auto") applyTheme(); }); } catch (e) {}
   ensureLevels("classic", function () {});
   showScreen("home");
 })();

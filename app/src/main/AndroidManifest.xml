@@ -6,11 +6,22 @@
          touches the network. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Runs on every phone/tablet size and density. -->
+    <supports-screens
+        android:anyDensity="true"
+        android:smallScreens="true"
+        android:normalScreens="true"
+        android:largeScreens="true"
+        android:xlargeScreens="true" />
+
     <application
         android:allowBackup="true"
+        android:appCategory="game"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
+        android:isGame="true"
         android:label="@string/app_name"
+        android:resizeableActivity="true"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">

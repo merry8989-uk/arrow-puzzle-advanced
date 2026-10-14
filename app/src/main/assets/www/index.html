@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -12,6 +12,9 @@
   <!-- HOME -->
   <section id="screen-home" class="screen active">
     <div class="home-wrap">
+      <div class="home-top">
+        <div class="coin-chip">&#129689; <span id="home-coins">0</span></div>
+      </div>
       <div class="logo">
         <div class="logo-arrow">&#10148;</div>
         <h1>ARROW PUZZLE</h1>
@@ -24,10 +27,11 @@
         <span class="bc-sub" id="continue-sub">Level 1</span>
       </button>
       <div class="home-grid">
-        <button class="tile-btn" id="btn-modes"><span class="tb-i">&#9638;</span><span class="tb-t">Modes</span><span class="tb-s" id="modes-sub">9 modes</span></button>
+        <button class="tile-btn" id="btn-modes"><span class="tb-i">&#9638;</span><span class="tb-t">Modes</span><span class="tb-s" id="modes-sub">14 modes</span></button>
+        <button class="tile-btn" id="btn-challenges"><span class="tb-i">&#9876;</span><span class="tb-t">Challenges</span><span class="tb-s">Hard packs</span></button>
         <button class="tile-btn" id="btn-daily"><span class="tb-i">&#9733;</span><span class="tb-t">Daily Goal</span><span class="tb-s" id="daily-sub">0 / 50</span></button>
-        <button class="tile-btn" id="btn-packs"><span class="tb-i">&#10022;</span><span class="tb-t">Packs</span><span class="tb-s" id="packs-sub">Weekly &amp; Monthly</span></button>
-        <button class="tile-btn" id="btn-settings"><span class="tb-i">&#9881;</span><span class="tb-t">Settings</span><span class="tb-s">Offline ready</span></button>
+        <button class="tile-btn" id="btn-packs"><span class="tb-i">&#10022;</span><span class="tb-t">Packs</span><span class="tb-s">Weekly &amp; Monthly</span></button>
+        <button class="tile-btn" id="btn-settings"><span class="tb-i">&#9881;</span><span class="tb-t">Settings</span><span class="tb-s" id="theme-sub">Dark theme</span></button>
       </div>
       <div class="home-foot"><span id="home-total">15,000</span> levels &middot; new puzzles every week</div>
     </div>
@@ -41,6 +45,16 @@
       <span class="icon-btn spacer"></span>
     </div>
     <div class="scroll" id="mode-list"></div>
+  </section>
+
+  <!-- CHALLENGES -->
+  <section id="screen-challenges" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" data-nav="home">&#8592;</button>
+      <div class="topbar-title"><span>Challenges</span><small>the hardest puzzles</small></div>
+      <span class="icon-btn spacer"></span>
+    </div>
+    <div class="scroll" id="challenge-list"></div>
   </section>
 
   <!-- LEVELS -->
@@ -63,17 +77,25 @@
     <div class="topbar">
       <button class="icon-btn" id="game-back">&#8592;</button>
       <div class="topbar-title"><span id="game-level">Level 1</span><small id="game-mode">Classic</small></div>
-      <button class="icon-btn" id="game-restart-top">&#8635;</button>
+      <div class="coin-chip small">&#129689; <span id="stat-coins">0</span></div>
     </div>
     <div class="stats-row">
       <div class="stat"><span class="stat-v" id="stat-moves">0</span><span class="stat-l">Moves</span></div>
       <div class="stat"><span class="stat-v" id="stat-par">0</span><span class="stat-l">Par</span></div>
       <div class="stat"><span class="stat-v" id="stat-stars">&#9734;&#9734;&#9734;</span><span class="stat-l">Rating</span></div>
+      <div class="stat"><span class="stat-v" id="stat-time">0s</span><span class="stat-l">Time</span></div>
     </div>
-    <div class="board-area"><div class="board" id="board"></div></div>
+    <div class="board-area" id="board-area">
+      <div class="board" id="board"></div>
+      <div class="zoom-ctl">
+        <button class="zbtn" id="zoom-in">+</button>
+        <button class="zbtn" id="zoom-out">&#8722;</button>
+        <button class="zbtn" id="zoom-reset">&#9974;</button>
+      </div>
+    </div>
     <div class="actionbar">
       <button class="btn" id="btn-undo">&#8630; Undo</button>
-      <button class="btn" id="btn-hint">&#9788; Hint</button>
+      <button class="btn" id="btn-hint">&#9788; Hint &middot; 2000</button>
       <button class="btn" id="btn-restart">&#8635; Restart</button>
     </div>
     <div class="hint-note" id="hint-note"></div>
@@ -122,10 +144,10 @@
     </div>
   </section>
 
-  <!-- PACK LEVEL LIST -->
+  <!-- PACK / CHALLENGE LEVEL LIST -->
   <section id="screen-pack" class="screen">
     <div class="topbar">
-      <button class="icon-btn" data-nav="packs">&#8592;</button>
+      <button class="icon-btn" id="pack-back">&#8592;</button>
       <div class="topbar-title"><span id="pack-title">Pack</span><small id="pack-sub">&nbsp;</small></div>
       <span class="icon-btn spacer"></span>
     </div>
@@ -140,25 +162,37 @@
       <span class="icon-btn spacer"></span>
     </div>
     <div class="scroll settings-body">
-      <h3>Look &amp; feel</h3>
+      <h3>App theme</h3>
+      <p class="muted">Dark, a bright white theme, or Auto to follow your device.</p>
+      <div class="seg" id="theme-seg">
+        <button class="seg-btn" data-theme="dark">Dark</button>
+        <button class="seg-btn" data-theme="light">White</button>
+        <button class="seg-btn" data-theme="auto">Auto</button>
+      </div>
+      <h3>Effects</h3>
+      <button class="btn toggle" id="sound-toggle">Fireworks sound: On</button>
+      <h3>Tile look</h3>
       <p class="muted">Every mode uses a different tile look over the same puzzle rules.</p>
       <div class="mode-options" id="settings-modes"></div>
       <h3>Content</h3>
       <p class="muted" id="content-info">15,000 bundled puzzles. Daily, weekly and monthly packs refresh automatically from your device date.</p>
       <button class="btn" id="btn-check-updates">Check for new packs</button>
-      <h3>Progress</h3>
+      <h3>Coins</h3>
+      <p class="muted" id="coins-info">Earn up to 100 coins per puzzle. Hints cost 2000 coins.</p>
       <button class="btn danger" id="btn-reset">Reset all progress</button>
       <h3>About</h3>
-      <p class="muted">Arrow Puzzle Advanced v2.0 &middot; works offline, no ads, no tracking. Optional online update check uses your network only when you tap it.</p>
+      <p class="muted">Arrow Puzzle Advanced v3.0 &middot; works offline, no ads, no tracking. Optional online update check uses your network only when you tap it.</p>
     </div>
   </section>
 
   <div id="toast"></div>
+  <canvas id="fx"></canvas>
   <div id="win" class="overlay">
     <div class="win-card">
       <div class="win-stars" id="win-stars">&#9733;&#9733;&#9733;</div>
       <h2 id="win-title">Level complete</h2>
       <p id="win-sub">Solved</p>
+      <p class="win-coins" id="win-coins">+0 coins</p>
       <button class="btn primary" id="win-next">Next</button>
       <button class="btn" id="win-replay">Replay</button>
     </div>
