@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Arrow Puzzle Advanced</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- HOME -->
+  <section id="screen-home" class="screen active">
+    <div class="home-wrap">
+      <div class="home-top">
+        <div class="coin-chip">&#129689; <span id="home-coins">0</span></div>
+      </div>
+      <div class="logo">
+        <div class="logo-arrow">&#10148;</div>
+        <h1>ARROW PUZZLE</h1>
+        <h2>ADVANCED</h2>
+      </div>
+      <div class="mode-chip" id="home-mode-chip">Classic Arrows</div>
+      <div class="daily-mini" id="daily-mini"></div>
+      <button class="btn primary big" id="btn-continue">
+        <span class="bc-label">Continue</span>
+        <span class="bc-sub" id="continue-sub">Level 1</span>
+      </button>
+      <div class="home-grid">
+        <button class="tile-btn" id="btn-modes"><span class="tb-i">&#9638;</span><span class="tb-t">Modes</span><span class="tb-s" id="modes-sub">14 modes</span></button>
+        <button class="tile-btn" id="btn-challenges"><span class="tb-i">&#9876;</span><span class="tb-t">Challenges</span><span class="tb-s">Hard packs</span></button>
+        <button class="tile-btn" id="btn-daily"><span class="tb-i">&#9733;</span><span class="tb-t">Daily Goal</span><span class="tb-s" id="daily-sub">0 / 50</span></button>
+        <button class="tile-btn" id="btn-packs"><span class="tb-i">&#10022;</span><span class="tb-t">Packs</span><span class="tb-s" id="packs-sub">Weekly &amp; Monthly</span></button>
+        <button class="tile-btn" id="btn-settings"><span class="tb-i">&#9881;</span><span class="tb-t">Settings</span><span class="tb-s" id="theme-sub">Dark theme</span></button>
+      </div>
+      <div class="home-foot"><span id="home-total">15,000</span> levels &middot; new puzzles every week</div>
+    </div>
+  </section>
+
+  <!-- MODES -->
+  <section id="screen-modes" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" data-nav="home">&#8592;</button>
+      <div class="topbar-title"><span>Modes</span><small>mechanic &times; look</small></div>
+      <span class="icon-btn spacer"></span>
+    </div>
+    <div class="scroll" id="mode-list"></div>
+  </section>
+
+  <!-- CHALLENGES -->
+  <section id="screen-challenges" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" data-nav="home">&#8592;</button>
+      <div class="topbar-title"><span>Challenges</span><small>the hardest puzzles</small></div>
+      <span class="icon-btn spacer"></span>
+    </div>
+    <div class="scroll" id="challenge-list"></div>
+  </section>
+
+  <!-- LEVELS -->
+  <section id="screen-levels" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" data-nav="modes">&#8592;</button>
+      <div class="topbar-title"><span id="levels-mode">Classic Arrows</span><small id="levels-progress">0 / 6000 solved</small></div>
+      <span class="icon-btn spacer"></span>
+    </div>
+    <div class="chapter-nav">
+      <button class="icon-btn small" id="chap-prev">&#8592;</button>
+      <div class="chapter-title" id="chap-title">Chapter 1</div>
+      <button class="icon-btn small" id="chap-next">&#8594;</button>
+    </div>
+    <div class="level-grid" id="level-grid"></div>
+  </section>
+
+  <!-- GAME -->
+  <section id="screen-game" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" id="game-back">&#8592;</button>
+      <div class="topbar-title"><span id="game-level">Level 1</span><small id="game-mode">Classic</small></div>
+      <div class="coin-chip small">&#129689; <span id="stat-coins">0</span></div>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><span class="stat-v" id="stat-moves">0</span><span class="stat-l">Moves</span></div>
+      <div class="stat"><span class="stat-v" id="stat-par">0</span><span class="stat-l">Par</span></div>
+      <div class="stat"><span class="stat-v" id="stat-stars">&#9734;&#9734;&#9734;</span><span class="stat-l">Rating</span></div>
+      <div class="stat"><span class="stat-v" id="stat-lives">&#9829;&#9829;&#9829;</span><span class="stat-l">Lives</span></div>
+      <div class="stat"><span class="stat-v" id="stat-time">0s</span><span class="stat-l">Time</span></div>
+    </div>
+    <div class="board-area" id="board-area">
+      <div class="board" id="board"></div>
+      <div class="zoom-ctl">
+        <button class="zbtn" id="zoom-in">+</button>
+        <button class="zbtn" id="zoom-out">&#8722;</button>
+        <button class="zbtn" id="zoom-reset">&#9974;</button>
+      </div>
+    </div>
+    <div class="actionbar">
+      <button class="btn" id="btn-undo">&#8630; Undo</button>
+      <button class="btn" id="btn-hint">&#9788; Hint &middot; 2000</button>
+      <button class="btn" id="btn-restart">&#8635; Restart</button>
+    </div>
+    <div class="hint-note" id="hint-note"></div>
+  </section>
+
+  <!-- DAILY -->
+  <section id="screen-daily" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" data-nav="home">&#8592;</button>
+      <div class="topbar-title"><span>Daily Goal</span><small id="daily-date">&nbsp;</small></div>
+      <span class="icon-btn spacer"></span>
+    </div>
+    <div class="pack-head">
+      <div class="progress"><div class="bar" id="daily-bar"></div></div>
+      <div class="pack-stat" id="daily-count">0 / 50 complete</div>
+    </div>
+    <div class="scroll" id="daily-list"></div>
+  </section>
+
+  <!-- PACKS -->
+  <section id="screen-packs" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" data-nav="home">&#8592;</button>
+      <div class="topbar-title"><span>Packs</span><small>fresh puzzles on a schedule</small></div>
+      <span class="icon-btn spacer"></span>
+    </div>
+    <div class="scroll">
+      <div class="pack-card">
+        <div class="pc-top"><span class="pc-t" id="weekly-title">This week</span><span class="pc-badge" id="weekly-badge">50 levels</span></div>
+        <div class="progress"><div class="bar" id="weekly-bar"></div></div>
+        <div class="pack-stat" id="weekly-count">0 / 50 complete</div>
+        <button class="btn primary" id="weekly-open">Open weekly pack</button>
+      </div>
+      <div class="pack-card">
+        <div class="pc-top"><span class="pc-t" id="monthly-title">This month</span><span class="pc-badge" id="monthly-badge">100 levels</span></div>
+        <div class="progress"><div class="bar" id="monthly-bar"></div></div>
+        <div class="pack-stat" id="monthly-count">0 / 100 complete</div>
+        <button class="btn primary" id="monthly-open">Open monthly pack</button>
+      </div>
+      <div class="pack-card">
+        <div class="pc-top"><span class="pc-t">Online updates</span><span class="pc-badge" id="upd-badge">optional</span></div>
+        <p class="muted" id="upd-text">The weekly &amp; monthly packs work fully offline. You can also check for extra packs when online.</p>
+        <button class="btn" id="upd-check">Check for new packs</button>
+      </div>
+      <div id="online-packs"></div>
+    </div>
+  </section>
+
+  <!-- PACK / CHALLENGE LEVEL LIST -->
+  <section id="screen-pack" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" id="pack-back">&#8592;</button>
+      <div class="topbar-title"><span id="pack-title">Pack</span><small id="pack-sub">&nbsp;</small></div>
+      <span class="icon-btn spacer"></span>
+    </div>
+    <div class="scroll" id="pack-list"></div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="screen-settings" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" data-nav="home">&#8592;</button>
+      <div class="topbar-title"><span>Settings</span></div>
+      <span class="icon-btn spacer"></span>
+    </div>
+    <div class="scroll settings-body">
+      <h3>App theme</h3>
+      <p class="muted">Dark, a bright white theme, or Auto to follow your device.</p>
+      <div class="seg" id="theme-seg">
+        <button class="seg-btn" data-theme="dark">Dark</button>
+        <button class="seg-btn" data-theme="light">White</button>
+        <button class="seg-btn" data-theme="auto">Auto</button>
+      </div>
+      <h3>Effects</h3>
+      <button class="btn toggle" id="sound-toggle">Sound effects: On</button>
+      <p class="muted">Taps, slides and escapes each have their own sound, plus fireworks on a solve.</p>
+      <button class="btn toggle" id="lives-toggle">Lives: 3 per level</button>
+      <p class="muted" id="lives-info">Three wrong taps and the level replays itself. You start with 3 lives and gain one more every 25 levels (levels 1&ndash;25 = 3, 26&ndash;50 = 4, and so on).</p>
+      <h3>Tile look</h3>
+      <p class="muted">Every mode uses a different tile look over the same puzzle rules.</p>
+      <div class="mode-options" id="settings-modes"></div>
+      <h3>Content</h3>
+      <p class="muted" id="content-info">15,000 bundled puzzles. Daily, weekly and monthly packs refresh automatically from your device date.</p>
+      <button class="btn" id="btn-check-updates">Check for new packs</button>
+      <button class="btn toggle" id="autoarch-toggle">Auto-archive unused modes: On (3 days)</button>
+      <h3>Coins</h3>
+      <p class="muted" id="coins-info">Earn up to 100 coins per puzzle. Hints cost 2000 coins.</p>
+      <h3>Suggestions &amp; requests</h3>
+      <p class="muted">Want a new mode, theme, difficulty or a fix? Message me on Instagram at <b id="ig-handle">@osintgram_io</b> — any help, suggestion or new-mode request is welcome.</p>
+      <button class="btn primary" id="btn-ig">Message @osintgram_io</button>
+      <button class="btn" id="btn-copy-ig">Copy my Instagram handle</button>
+      <h3>Reset</h3>
+      <button class="btn danger" id="btn-reset">Reset all progress</button>
+      <h3>About</h3>
+      <p class="muted">Arrow Puzzle Advanced v3.0 &middot; works offline, no ads, no tracking. Optional online update check uses your network only when you tap it.</p>
+    </div>
+  </section>
+
+  <div id="toast"></div>
+  <canvas id="fx"></canvas>
+  <div id="win" class="overlay">
+    <div class="win-card">
+      <div class="win-stars" id="win-stars">&#9733;&#9733;&#9733;</div>
+      <h2 id="win-title">Level complete</h2>
+      <p id="win-sub">Solved</p>
+      <p class="win-coins" id="win-coins">+0 coins</p>
+      <button class="btn primary" id="win-next">Next</button>
+      <button class="btn" id="win-replay">Replay</button>
+      <button class="btn" id="win-home">Home</button>
+    </div>
+  </div>
+  <div id="lose" class="overlay">
+    <div class="win-card">
+      <div class="win-stars" style="color:#ff5b6e">&#10084;&#10084;&#10084;</div>
+      <h2>Out of lives</h2>
+      <p id="lose-sub">Replay this level or head home.</p>
+      <button class="btn primary" id="lose-replay">Replay</button>
+      <button class="btn" id="lose-home">Home</button>
+    </div>
+  </div>
+
+</div>
+<script src="game_core.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
