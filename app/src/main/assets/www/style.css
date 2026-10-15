@@ -127,6 +127,8 @@ html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
 .modes-head.arch{cursor:pointer;color:var(--accent);padding:12px 2px;border-top:1px solid var(--line);margin-top:14px}
 .mi-act{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:4px 10px;margin-right:2px;white-space:nowrap}
 .mi-act[data-act="restore"]{color:var(--accent);border-color:var(--accent)}
+.mi-fav{font-size:20px;color:var(--muted);padding:4px 6px;cursor:pointer;line-height:1;flex:0 0 auto}
+.mi-fav.on{color:#ffce4d}
 .zoom-ctl{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:6px;z-index:6}
 .zbtn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:18px;font-weight:800;cursor:pointer}
 .zbtn:active{transform:scale(.94)}

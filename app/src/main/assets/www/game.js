@@ -122,9 +122,9 @@
   function saveProgress() { try { localStorage.setItem("apa_progress_v2", JSON.stringify(state.progress)); } catch (e) { toast("Storage full"); } }
   function modeProg(id) { return state.progress.modes[id] || (state.progress.modes[id] = { unlocked: 1, stars: {} }); }
   /* ---------- mode archive ---------- */
-  function modeMeta(id) { return state.progress.modeMeta[id] || (state.progress.modeMeta[id] = { last: null, hidden: false }); }
+  function modeMeta(id) { return state.progress.modeMeta[id] || (state.progress.modeMeta[id] = { last: null, hidden: false, plays: 0, fav: false }); }
   function setModeMeta(id, patch) { var m = modeMeta(id); for (var k in patch) m[k] = patch[k]; saveProgress(); }
-  function touchMode(id) { var m = modeMeta(id); m.last = Date.now(); if (m.hidden) m.hidden = false; saveProgress(); }
+  function touchMode(id) { var m = modeMeta(id); m.last = Date.now(); m.plays = (m.plays || 0) + 1; if (m.hidden) m.hidden = false; saveProgress(); }
   // A mode is archived when the user hid it, or (auto) when it was last played
   // more than 3 days ago, or when it has never been played at all once the user
   // has started playing some other mode. The current mode is never archived.
@@ -205,30 +205,62 @@
   }
   function modeItemEl(m, archived) {
     var p = modeProg(m.id), size = MECHANICS[m.mech].size, solved = Object.keys(p.stars).length;
+    var meta = modeMeta(m.id);
     var el = document.createElement("div");
     el.className = "mode-item" + (m.id === state.mode ? " sel" : "");
     el.innerHTML = "<div class='mi-icon'>" + themeIcon(m.theme) + "</div>" +
       "<div class='mi-text'><div class='mi-name'>" + m.name + "</div><div class='mi-desc'>" + m.desc + "</div>" +
       "<div class='mi-tag'>" + THEMES[m.theme].name + " \u00b7 " + solved + "/" + size + " solved</div></div>" +
+      "<div class='mi-fav" + (meta.fav ? " on" : "") + "' data-act='fav'>" + (meta.fav ? "\u2605" : "\u2606") + "</div>" +
       (archived ? "<div class='mi-act' data-act='restore'>Restore</div>" : "<div class='mi-act' data-act='hide'>Hide</div>") +
       "<div class='mi-go'>\u203A</div>";
     el.onclick = function (ev) {
       var act = ev.target && ev.target.getAttribute && ev.target.getAttribute("data-act");
+      if (act === "fav") { setModeMeta(m.id, { fav: !modeMeta(m.id).fav }); renderModes(); return; }
       if (act === "hide") { setModeMeta(m.id, { hidden: true }); toast(m.name + " moved to archive"); renderModes(); return; }
       if (act === "restore") { setModeMeta(m.id, { hidden: false, last: Date.now() }); toast(m.name + " restored"); renderModes(); return; }
       state.mode = m.id; state.chapter = Math.ceil(Math.min(p.unlocked, size) / CHAPTER); showScreen("levels");
     };
     return el;
   }
+  // Recommended = the mode you're closest to finishing (best next step); if all
+  // modes are finished, the one with the most solved levels.
+  function bestMode() {
+    var allDone = true, best = null, bestScore = -1;
+    MODES.forEach(function (m) { if (Object.keys(modeProg(m.id).stars).length < MECHANICS[m.mech].size) allDone = false; });
+    MODES.forEach(function (m) {
+      var size = MECHANICS[m.mech].size, solved = Object.keys(modeProg(m.id).stars).length;
+      var score = allDone ? solved : (solved >= size ? -1 : solved / size);
+      if (score > bestScore) { bestScore = score; best = m; }
+    });
+    return best || MODES[0];
+  }
+  // Current = the mode you have played the most; before you've played anything,
+  // the one you opened last.
+  function mostPlayed() {
+    var best = null, bestN = -1;
+    MODES.forEach(function (m) { var n = modeMeta(m.id).plays || 0; if (n > bestN) { bestN = n; best = m; } });
+    if (bestN <= 0) { var byLast = MODES.slice().sort(function (a, b) { return (modeMeta(b.id).last || 0) - (modeMeta(a.id).last || 0); }); return byLast[0] || MODES[0]; }
+    return best;
+  }
   function renderModes() {
     var box = $("mode-list"); box.innerHTML = "";
+    var shown = {};
+    function section(title, list, note) {
+      if (!list.length) return;
+      var h = document.createElement("div"); h.className = "modes-head"; h.textContent = title + (note ? " \u00b7 " + note : "");
+      box.appendChild(h);
+      list.forEach(function (m) { shown[m.id] = 1; box.appendChild(modeItemEl(m, isArchived(m.id))); });
+    }
+    var rec = bestMode(), cur = mostPlayed();
+    var favs = MODES.filter(function (m) { return modeMeta(m.id).fav; });
+    section("Recommended", rec ? [rec] : [], "best next step");
+    section("Current", cur ? [cur] : [], "most played");
+    section("Favorites", favs, favs.length + " starred");
     var active = [], archived = [];
     MODES.forEach(function (m) { (isArchived(m.id) ? archived : active).push(m); });
     active.sort(function (a, b) { return (modeMeta(b.id).last || 0) - (modeMeta(a.id).last || 0); });
-    var h = document.createElement("div"); h.className = "modes-head";
-    h.textContent = "Active \u00b7 most played on top (" + active.length + ")";
-    box.appendChild(h);
-    active.forEach(function (m) { box.appendChild(modeItemEl(m, false)); });
+    section("All modes", active.filter(function (m) { return !shown[m.id]; }), active.length + " active");
     if (archived.length) {
       var h2 = document.createElement("div"); h2.className = "modes-head arch";
       h2.innerHTML = "Archive (" + archived.length + ") " + (state.showArchived ? "\u25BE" : "\u25B8");
@@ -764,8 +796,8 @@
     updateLives();
     if (state.lives <= 0) {
       state.locked = true;
-      toast("Out of lives \u2014 replaying this level");
-      setTimeout(function () { restart(); }, 850);
+      var lo = $("lose");
+      if (lo) lo.classList.add("show"); else { toast("Out of lives \u2014 replaying this level"); setTimeout(function () { restart(); }, 850); }
     } else {
       toast(state.lives + (state.lives === 1 ? " life left" : " lives left"));
     }
@@ -1175,6 +1207,9 @@
     $("btn-restart").onclick = restart;
     $("win-next").onclick = nextLevel;
     $("win-replay").onclick = function () { $("win").classList.remove("show"); restart(); };
+    $("win-home").onclick = function () { $("win").classList.remove("show"); showScreen("home"); };
+    $("lose-replay").onclick = function () { $("lose").classList.remove("show"); restart(); };
+    $("lose-home").onclick = function () { $("lose").classList.remove("show"); state.locked = false; showScreen("home"); };
     $("upd-check").onclick = checkUpdates;
     $("btn-check-updates").onclick = checkUpdates;
     $("btn-reset").onclick = function () { if (confirm("Reset all progress for every mode and pack?")) { state.progress = blankProgress(); saveProgress(); toast("Progress reset"); } };
