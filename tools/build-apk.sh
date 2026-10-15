@@ -51,8 +51,12 @@ PY
 
 echo "[6/6] zipalign + sign"
 "$BT/zipalign" -f -p 4 "$OUT/base.apk" "$OUT/aligned.apk"
-KS="${APA_KEYSTORE:-$OUT/apa-release.jks}"
+# Sign with the committed release keystore so every build shares one signature
+# and future versions install as in-place updates. Override with APA_KEYSTORE.
+KS="${APA_KEYSTORE:-$REPO/keystore/apa-release.jks}"
 if [ ! -f "$KS" ]; then
+  echo "WARNING: keystore not found at $KS — generating a throwaway key." >&2
+  echo "         Builds signed with it will NOT update an installed app." >&2
   keytool -genkeypair -keystore "$KS" -alias apa -keyalg RSA -keysize 2048 \
     -validity 10000 -storepass android -keypass android \
     -dname "CN=Arrow Puzzle Advanced,O=Arrow Puzzle Advanced,C=IN"
