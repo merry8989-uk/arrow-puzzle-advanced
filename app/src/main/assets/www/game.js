@@ -376,10 +376,15 @@
   }
   function playLevel(modeId, index, levelsArr, ctx) {
     var m = modeById(modeId), lv = levelsArr[index];
+    if (isLongTheme(m.theme)) lv = pieceLevel(lv, modeId, index);
     state.current = { modeId: modeId, index: index, levelsArr: levelsArr, ctx: ctx, level: lv };
     touchMode(modeId);
-    state.arrows = lv.arrows.map(function (a, i) { return { id: i + 1, r: a[0], c: a[1], d: a[2], need: a.length > 3 ? a[3] : 1 }; });
-    state.nextId = lv.arrows.length + 1;
+    if (lv.pieces) {
+      state.arrows = lv.pieces.map(function (p, i) { return { id: i + 1, r: p.r, c: p.c, d: p.d, need: 1, path: p.cells.map(function (q) { return { r: q[0], c: q[1] }; }) }; });
+    } else {
+      state.arrows = lv.arrows.map(function (a, i) { return { id: i + 1, r: a[0], c: a[1], d: a[2], need: a.length > 3 ? a[3] : 1 }; });
+    }
+    state.nextId = state.arrows.length + 1;
     state.history = []; state.moves = 0; state.hintsUsed = 0; state.locked = false;
     state.maxLives = livesForLevel(lv.id || (index + 1)); state.lives = state.maxLives; updateLives();
     state.startTime = Date.now(); resetZoom();
@@ -467,8 +472,9 @@
       el.style.left = cellX(w[1]) + "px"; el.style.top = cellY(w[0]) + "px"; board.appendChild(el);
     });
     state.occ = buildOcc();
-    if (isLongTheme(m.theme)) computeLongPaths(longTurns(m.theme));
     state.arrows.forEach(function (a) { createArrowEl(a, m.theme); });
+    var lh = document.createElement("div"); lh.id = "lanehint"; lh.className = "lanehint"; board.appendChild(lh);
+    resetZoom();
   }
   /* ---------- long multi-cell arrows ----------
      Long / Curly / Black draw a single long arrow that runs through the open
@@ -481,6 +487,83 @@
     state.arrows.forEach(function (a) { s[a.r + "," + a.c] = 1; });
     (state.current.level.walls || []).forEach(function (w) { s[w[0] + "," + w[1]] = 1; });
     return s;
+  }
+  // Cells that block a piece's escape lane: real walls plus EVERY cell (head and
+  // body) of every OTHER piece. A piece's own body never blocks its own lane.
+  function blockWalls(idx) {
+    var lv = state.current.level, out = (lv.walls || []).slice();
+    for (var j = 0; j < state.arrows.length; j++) {
+      if (j === idx) continue;
+      var a = state.arrows[j];
+      if (a.path && a.path.length) { for (var p = 0; p < a.path.length; p++) out.push([a.path[p].r, a.path[p].c]); }
+      else out.push([a.r, a.c]);
+    }
+    return out;
+  }
+  // First piece that can legally move right now (drives the hint for every mechanic).
+  function freeIdx() {
+    var lv = state.current.level, mech = coreOf(modeById(state.current.modeId).mech);
+    var arr = state.arrows.map(function (a) { return [a.r, a.c, a.d, a.need]; });
+    for (var i = 0; i < state.arrows.length; i++) {
+      if (C.applyMove(mech, lv.rows, lv.cols, arr, blockWalls(i), i)) return i;
+    }
+    return -1;
+  }
+  /* ---------- piece generator (long / curly / black / mega) ----------
+     Builds a board of bent multi-cell pieces that is solvable BY CONSTRUCTION:
+     a piece is only placed when the straight lane from its head to the edge is
+     clear of everything placed before it, so the reverse placement order is a
+     guaranteed solution. Lengths are mixed (short / medium / long). */
+  function genPieces(R, C, count, maxLen, rng) {
+    var occ = {}, pieces = [];
+    function free(r, c) { return r >= 0 && r < R && c >= 0 && c < C && !occ[r + "," + c]; }
+    function laneClear(r, c, d) {
+      var dr = DIRS[d][0], dc = DIRS[d][1], rr = r + dr, cc = c + dc;
+      while (rr >= 0 && rr < R && cc >= 0 && cc < C) { if (occ[rr + "," + cc]) return false; rr += dr; cc += dc; }
+      return true;
+    }
+    function runLen(r, c, d) {
+      var dr = DIRS[d][0], dc = DIRS[d][1], n = 0, rr = r + dr, cc = c + dc;
+      while (free(rr, cc)) { n++; rr += dr; cc += dc; }
+      return n;
+    }
+    var attempts = 0;
+    while (pieces.length < count && attempts < count * 90) {
+      attempts++;
+      var r = (rng() * R) | 0, c = (rng() * C) | 0;
+      if (!free(r, c)) continue;
+      var dirs = [0, 1, 2, 3], best = -1, bestLen = -1, t, j, tm, i, d, L;
+      for (t = 0; t < 4; t++) { j = t + ((rng() * (4 - t)) | 0); tm = dirs[t]; dirs[t] = dirs[j]; dirs[j] = tm; }
+      for (i = 0; i < 4; i++) { d = dirs[i]; if (laneClear(r, c, d)) { L = runLen(r, c, oppDir(d)); if (L > bestLen) { bestLen = L; best = d; } } }
+      if (best < 0) continue;
+      var u = rng(), want;
+      if (u < 0.30) want = 1;
+      else if (u < 0.74) want = 2 + ((rng() * 3) | 0);
+      else want = 5 + ((rng() * Math.max(1, maxLen - 4)) | 0);
+      want = Math.max(1, Math.min(maxLen, want));
+      var cells = [[r, c]]; occ[r + "," + c] = 1;
+      var dir = oppDir(best), turns = 0, cur = [r, c];
+      while (cells.length < want) {
+        var dr = DIRS[dir][0], dc = DIRS[dir][1], nr = cur[0] + dr, nc = cur[1] + dc;
+        if (free(nr, nc)) { cells.push([nr, nc]); occ[nr + "," + nc] = 1; cur = [nr, nc]; continue; }
+        if (dir >= 4 || turns >= 2) break;
+        var p1 = (dir + 1) % 4, p3 = (dir + 3) % 4;
+        var l1 = runLen(cur[0], cur[1], p1), l3 = runLen(cur[0], cur[1], p3);
+        if (l1 < 1 && l3 < 1) break;
+        dir = (l1 >= l3) ? p1 : p3; turns++;
+      }
+      pieces.push({ r: r, c: c, d: best, cells: cells });
+    }
+    return pieces;
+  }
+  function pieceLevel(lv, modeId, index) {
+    var N = Math.max(4, (lv.arrows || []).length);
+    var id = lv.id || (index + 1);
+    var maxLen = Math.max(6, Math.min(14, 6 + Math.floor(id / 40)));
+    var side = Math.max(6, Math.min(64, Math.ceil(Math.sqrt(N * 3.2))));
+    var rng = mulberry32(hashStr(modeId + ":" + id));
+    var pieces = genPieces(side, side, N, maxLen, rng);
+    return { rows: side, cols: side, walls: [], par: pieces.length, id: id, hard: lv.hard, mega: lv.mega, pieces: pieces };
   }
   function arrowSpanCells(lv, occ, r, c, d) {
     var dr = DIRS[d][0], dc = DIRS[d][1], L = 1, rr = r + dr, cc = c + dc;
@@ -602,6 +685,10 @@
     el.style.width = el.style.height = state.geo.S + "px";
     el.style.transform = "translate(" + cellX(a.c) + "px," + cellY(a.r) + "px)";
     el.innerHTML = isLongTheme(theme) ? longArrowInner(a, state.occ || buildOcc()) : tileInner(theme, a.d, a.need);
+    el.addEventListener("pointerdown", function () { startHold(a.id); });
+    el.addEventListener("pointerup", endHold);
+    el.addEventListener("pointercancel", endHold);
+    el.addEventListener("pointerleave", endHold);
     el.addEventListener("click", function () { onTap(a.id); });
     $("board").appendChild(el); state.els[a.id] = el;
   }
@@ -622,6 +709,42 @@
     setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 380);
   }
   function shake(id) { var el = state.els[id]; if (!el) return; el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
+
+  /* ---------- tap-and-hold: show a piece's lane to the edge ---------- */
+  var holdTimer = null, holdFired = false;
+  function startHold(id) {
+    if (state.locked || state.swallow) return;
+    holdFired = false;
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(function () { holdFired = true; showLane(id); }, 230);
+  }
+  function endHold() {
+    clearTimeout(holdTimer); holdTimer = null;
+    hideLane();
+    if (holdFired) { state.swallow = true; setTimeout(function () { state.swallow = false; }, 90); }
+    holdFired = false;
+  }
+  function laneBlocked(a) {
+    var lv = state.current.level, w = blockWalls(state.arrows.indexOf(a));
+    var s = new Set(); for (var i = 0; i < w.length; i++) s.add(w[i][0] + "," + w[i][1]);
+    return !C.classicRayClear(lv.rows, lv.cols, a.r, a.c, a.d, new Set(), s);
+  }
+  function showLane(id) {
+    var a = null; for (var i = 0; i < state.arrows.length; i++) if (state.arrows[i].id === id) { a = state.arrows[i]; break; }
+    var el = $("lanehint"); if (!a || !el) return;
+    var lv = state.current.level, step = state.geo.S + state.geo.gap, n = 1;
+    var r = a.r + DIRS[a.d][0], c = a.c + DIRS[a.d][1];
+    while (r >= 0 && r < lv.rows && c >= 0 && c < lv.cols) { n++; r += DIRS[a.d][0]; c += DIRS[a.d][1]; }
+    var len = (n - 1) * step + state.geo.S / 2;
+    var ang = Math.atan2(DIRS[a.d][0], DIRS[a.d][1]) * 180 / Math.PI;
+    el.style.display = "block";
+    el.style.width = len + "px";
+    el.style.left = (cellX(a.c) + state.geo.S / 2) + "px";
+    el.style.top = (cellY(a.r) + state.geo.S / 2 - 2) + "px";
+    el.style.background = laneBlocked(a) ? "#ff5b6e" : "#2ecc71";
+    el.style.transform = "rotate(" + ang + "deg)";
+  }
+  function hideLane() { var el = $("lanehint"); if (el) el.style.display = "none"; }
 
   function livesOn() { return !(state.progress.settings && state.progress.settings.lives === false); }
   // Base 3 lives, +1 more for every 25 levels cleared (levels 1-25 = 3, 26-50 = 4, ...).
@@ -658,14 +781,18 @@
     var arr = state.arrows.map(function (a) { return [a.r, a.c, a.d, a.need]; });
     var tile = state.arrows[idx];
     var lv0r = tile.r, lv0c = tile.c;
-    var res = C.applyMove(mech, lv.rows, lv.cols, arr, lv.walls, idx);
+    var res = C.applyMove(mech, lv.rows, lv.cols, arr, blockWalls(idx), idx);
     if (!res) { sfxWrong(); loseLife(id); return; }
     state.history.push(snapshot());
     state.moves++;
     if (mech === "escape") {
-      var m = C.escapeMoveFor(lv.rows, lv.cols, arr, lv.walls, idx);
+      var m = C.escapeMoveFor(lv.rows, lv.cols, arr, blockWalls(idx), idx);
       if (m.exit) { sfxEscape(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d); }
-      else { sfxSlide(); tile.r += DIRS[tile.d][0]; tile.c += DIRS[tile.d][1]; positionArrow(tile); }
+      else {
+        sfxSlide(); tile.r += DIRS[tile.d][0]; tile.c += DIRS[tile.d][1];
+        if (tile.path) tile.path.forEach(function (p) { p.r += DIRS[tile.d][0]; p.c += DIRS[tile.d][1]; });
+        positionArrow(tile); refreshLongArrows(tile);
+      }
     } else if (mech === "multi") {
       if (tile.need > 1) { sfxTick(); tile.need -= 1; updateNeed(tile); }
       else { sfxClear(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d); }
@@ -729,24 +856,10 @@
   /* ---------- hint ---------- */
   function eqState(a, b) { if (a.length !== b.length) return false; for (var i = 0; i < a.length; i++) if (a[i][0] !== b[i][0] || a[i][1] !== b[i][1] || a[i][2] !== b[i][2]) return false; return true; }
   function hintCell() {
-    var lv = state.current.level, mech = coreOf(modeById(state.current.modeId).mech);
-    var arr = state.arrows.map(function (a) { return [a.r, a.c, a.d, a.need]; });
-    if (mech === "classic" || mech === "multi") { var i = C.hintIndex(mech, lv.rows, lv.cols, arr, lv.walls); return i >= 0 ? [arr[i][0], arr[i][1]] : null; }
-    // escape: fast path along stored solution, else solver
-    var sol = state.solArr || [], cur = arr.map(function (a) { return [a[0], a[1], a[2]]; }).sort(cmp);
-    var st = lv.arrows.map(function (a) { return [a[0], a[1], a[2]]; }).sort(cmp);
-    for (var j = 0; j < sol.length; j++) {
-      if (eqState(st, cur)) return sol[j];
-      var k = -1; for (var t = 0; t < st.length; t++) if (st[t][0] === sol[j][0] && st[t][1] === sol[j][1]) { k = t; break; }
-      if (k < 0) break;
-      var a = st[k], nr = a[0] + DIRS[a[2]][0], nc = a[1] + DIRS[a[2]][1];
-      if (!C.inb(lv.rows, lv.cols, nr, nc)) st.splice(k, 1); else { st[k] = [nr, nc, a[2]]; st.sort(cmp); }
-    }
-    if (eqState(st, cur)) return null;
-    var s = C.escapeSolve(lv.rows, lv.cols, cur, lv.walls, 250000);
-    if (s && s.length) return s[0];
-    for (var q = 0; q < arr.length; q++) if (C.escapeMoveFor(lv.rows, lv.cols, arr, lv.walls, q)) return [arr[q][0], arr[q][1]];
-    return null;
+    var i = freeIdx();
+    if (i < 0) return null;
+    var a = state.arrows[i];
+    return [a.r, a.c];
   }
   function doHint() {
     if (state.locked || !state.current) return;
@@ -884,13 +997,26 @@
 
   /* ---------- zoom & pan ---------- */
   var zoom = { s: 1, x: 0, y: 0 }, drag = { on: false, moved: 0, x: 0, y: 0, pinch: 0, s0: 1 };
-  function applyZoom() { var b = $("board"); if (b) b.style.transform = "translate(" + zoom.x + "px," + zoom.y + "px) scale(" + zoom.s + ")"; }
+  // zoom.x / zoom.y are offsets FROM the centred position, so the board stays
+  // centred in the play area whether it is smaller OR bigger than the viewport.
+  function boardCenter() {
+    var b = $("board"), a = $("board-area"); if (!b || !a) return [0, 0];
+    var cs = getComputedStyle(a);
+    var cw = a.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    var ch = a.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+    return [(cw - b.offsetWidth * zoom.s) / 2, (ch - b.offsetHeight * zoom.s) / 2];
+  }
+  function applyZoom() {
+    var b = $("board"); if (!b) return;
+    var o = boardCenter();
+    b.style.transform = "translate(" + (o[0] + zoom.x) + "px," + (o[1] + zoom.y) + "px) scale(" + zoom.s + ")";
+  }
   function resetZoom() { zoom = { s: 1, x: 0, y: 0 }; applyZoom(); }
   function setZoom(s) { zoom.s = Math.max(0.6, Math.min(6, s)); clampPan(); applyZoom(); }
   function clampPan() {
     var b = $("board"), a = $("board-area"); if (!b || !a) return;
     var bw = b.offsetWidth * zoom.s, bh = b.offsetHeight * zoom.s;
-    var mx = Math.max(0, (bw - a.clientWidth) / 2 + 30), my = Math.max(0, (bh - a.clientHeight) / 2 + 30);
+    var mx = Math.max(0, (bw - a.clientWidth) / 2) + 40, my = Math.max(0, (bh - a.clientHeight) / 2) + 40;
     zoom.x = Math.max(-mx, Math.min(mx, zoom.x)); zoom.y = Math.max(-my, Math.min(my, zoom.y));
   }
   function initZoom() {

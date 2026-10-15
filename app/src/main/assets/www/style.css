@@ -99,10 +99,11 @@ html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
 .stat{display:flex;flex-direction:column;align-items:center;min-width:56px}
 .stat-v{font-size:17px;font-weight:800}
 .stat-l{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase}
-.board-area{flex:1;display:flex;align-items:center;justify-content:center;padding:6px;min-height:0;position:relative;overflow:hidden;touch-action:none}
+.board-area{flex:1;display:flex;align-items:flex-start;justify-content:flex-start;padding:6px;min-height:0;position:relative;overflow:hidden;touch-action:none}
 .board{position:relative;border:1px solid var(--line);border-radius:18px;padding:8px;transform-origin:center center;will-change:transform}
 .cellbg{position:absolute;border-radius:8px;background:#141b2b}
 .wall{position:absolute;border-radius:8px;background:#2b3550;border:1px solid #3a4766;box-shadow:inset 0 2px 0 rgba(255,255,255,.06)}
+.lanehint{position:absolute;display:none;height:4px;border-radius:2px;transform-origin:0 50%;pointer-events:none;z-index:6;opacity:.85;box-shadow:0 0 8px rgba(0,0,0,.35)}
 .board-dark{background:var(--bg2);box-shadow:inset 0 0 40px rgba(0,0,0,.4)}
 .board-dark .cellbg{background:#141b2b}
 .board-dark .wall{background:#2b3550;border-color:#3a4766}
