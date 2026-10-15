@@ -51,17 +51,28 @@ PY
 
 echo "[6/6] zipalign + sign"
 "$BT/zipalign" -f -p 4 "$OUT/base.apk" "$OUT/aligned.apk"
-# Sign with the committed release keystore so every build shares one signature
-# and future versions install as in-place updates. Override with APA_KEYSTORE.
-KS="${APA_KEYSTORE:-$REPO/keystore/apa-release.jks}"
-if [ ! -f "$KS" ]; then
-  echo "WARNING: keystore not found at $KS — generating a throwaway key." >&2
-  echo "         Builds signed with it will NOT update an installed app." >&2
-  keytool -genkeypair -keystore "$KS" -alias apa -keyalg RSA -keysize 2048 \
-    -validity 10000 -storepass android -keypass android \
-    -dname "CN=Arrow Puzzle Advanced,O=Arrow Puzzle Advanced,C=IN"
+# --- signing ---------------------------------------------------------------
+# The release keystore is NOT kept in the repo. Supply it one of two ways:
+#   local build :  APA_KEYSTORE=/path/to/apa-release.jks
+#   CI          :  APA_KEYSTORE_BASE64="$(base64 -w0 apa-release.jks)"
+# Credentials come from APA_KEYSTORE_PASSWORD / APA_KEY_PASSWORD / APA_KEY_ALIAS
+# (defaults: password "android", alias "apa").
+KS="${APA_KEYSTORE:-}"
+if [ -z "$KS" ] && [ -n "${APA_KEYSTORE_BASE64:-}" ]; then
+  KS="$OUT/apa-release.jks"
+  printf '%s' "$APA_KEYSTORE_BASE64" | base64 -d > "$KS"
 fi
-"$BT/apksigner" sign --ks "$KS" --ks-pass pass:android --key-pass pass:android \
+if [ -z "$KS" ] || [ ! -f "$KS" ]; then
+  echo "ERROR: no signing keystore found." >&2
+  echo "  Local build: APA_KEYSTORE=/path/to/apa-release.jks bash tools/build-apk.sh" >&2
+  echo "  CI:          set APA_KEYSTORE_BASE64 from a secret. See README > Signing." >&2
+  exit 1
+fi
+STOREPASS="${APA_KEYSTORE_PASSWORD:-android}"
+KEYPASS="${APA_KEY_PASSWORD:-$STOREPASS}"
+KEYALIAS="${APA_KEY_ALIAS:-apa}"
+"$BT/apksigner" sign --ks "$KS" --ks-key-alias "$KEYALIAS" \
+  --ks-pass "pass:$STOREPASS" --key-pass "pass:$KEYPASS" \
   --out "$OUT/$APK_NAME" "$OUT/aligned.apk"
 "$BT/apksigner" verify "$OUT/$APK_NAME"
 echo "Built: $OUT/$APK_NAME"

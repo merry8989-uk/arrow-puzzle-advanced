@@ -99,9 +99,17 @@ ANDROID_HOME=/path/sdk bash tools/build-apk.sh   # dependency-free build
 
 ## Signing
 
-Release APKs are signed with the keystore committed at `keystore/apa-release.jks` (alias `apa`; store and key password `android`). Because every build uses this one key, a new version installs as an in-place **update** over the previous one — no uninstall needed. Point at a different key with `APA_KEYSTORE=/path/to/key.jks`.
+Release APKs are signed with a single release keystore that is **not stored in this repo** — it lives in GitHub Actions secrets plus your own private backup. Because every build uses that one key, a new version installs as an in-place **update** over the previous one — no uninstall needed.
 
-> The keystore lives in this public repo, so its key is not a secret — acceptable for a free, sideloaded game. Never switch keys once a version is out: Android refuses to update an app across a key change, so you would have to change the `applicationId` to ship a new one.
+Local build — point the script at your copy of the keystore:
+
+```bash
+APA_KEYSTORE=/path/to/apa-release.jks bash tools/build-apk.sh
+```
+
+CI — [`.github/workflows/build-apk.yml`](.github/workflows/build-apk.yml) decodes the keystore from secrets and builds on demand (Actions tab → *Run workflow*) or on a `v*` tag, attaching the APK to the release. Set these repository secrets: `KEYSTORE_BASE64` (`base64 -w0 apa-release.jks`), `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
+
+> Keep a private backup of the keystore — lose it and you can never update the app again. Never switch keys once a version is out: Android refuses to update an app across a key change, so you would have to change the `applicationId` to ship a new one.
 
 ## Project layout
 
@@ -115,7 +123,7 @@ app/src/main/assets/www/     the whole game (HTML/CSS/JS)
 packs/                       optional online pack manifest + sample pack
 tools/level_generator/       Python generator + verifier + asset builder
 tools/build-apk.sh           Gradle-less APK build
-keystore/apa-release.jks     release signing key (shared by every build)
+.github/workflows/           CI: build + sign the APK from secrets
 ```
 
 ## License
