@@ -11,7 +11,7 @@ A clean, offline Android puzzle **game** with **15,000 levels across 16 modes an
 Grab the signed APK from the [Releases](../../releases) page, or from [`dist/`](dist/).
 
 ```
-dist/ArrowPuzzleAdvanced-3.0.apk
+dist/ArrowPuzzleAdvanced-5.5.apk
 ```
 
 Sideload on Android 7.0 (API 24)+ — it runs on phones and tablets of every size and density. Declared as a game (`android:isGame` + `android:appCategory="game"`), so Android and the Play Store treat it as one.
