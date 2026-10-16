@@ -425,7 +425,10 @@
     // Each tile gets its own random colour index (independent of its direction).
     var ciRng = mulberry32(hashStr(modeId + ":" + index + ":ci"));
     if (lv.pieces) {
-      state.arrows = lv.pieces.map(function (p, i) { return { id: i + 1, r: p.r, c: p.c, d: p.d, need: 1, ci: Math.floor(ciRng() * 8), path: p.cells.map(function (q) { return { r: q[0], c: q[1] }; }) }; });
+      // Path is stored TAIL-first so it ENDS on the head tile: the renderer draws
+      // the arrowhead at the last point, which must be the tile the player taps,
+      // pointing the way that tile escapes.
+      state.arrows = lv.pieces.map(function (p, i) { return { id: i + 1, r: p.r, c: p.c, d: p.d, need: 1, ci: Math.floor(ciRng() * 8), path: p.cells.slice().reverse().map(function (q) { return { r: q[0], c: q[1] }; }) }; });
     } else {
       state.arrows = lv.arrows.map(function (a, i) { return { id: i + 1, r: a[0], c: a[1], d: a[2], need: a.length > 3 ? a[3] : 1, ci: Math.floor(ciRng() * 8) }; });
     }
@@ -581,8 +584,19 @@
       if (!free(r, c)) continue;
       var dirs = [0, 1, 2, 3], best = -1, bestLen = -1, t, j, tm, i, d, L;
       for (t = 0; t < 4; t++) { j = t + ((rng() * (4 - t)) | 0); tm = dirs[t]; dirs[t] = dirs[j]; dirs[j] = tm; }
-      for (i = 0; i < 4; i++) { d = dirs[i]; if (laneClear(r, c, d)) { L = runLen(r, c, oppDir(d)); if (L > bestLen) { bestLen = L; best = d; } } }
-      if (best < 0) continue;
+      // Prefer a direction whose lane ahead is clear AND that has room directly
+      // behind the head, so the body leaves the tile straight back -- that keeps
+      // the arrowhead pointing the way the piece actually travels.
+      for (i = 0; i < 4; i++) { d = dirs[i]; if (laneClear(r, c, d)) { L = runLen(r, c, oppDir(d)); if (L >= 1 && L > bestLen) { bestLen = L; best = d; } } }
+      if (best < 0) {
+        // No direction has room directly behind the head -> place a plain
+        // single-cell arrow, so the arrowhead still points the way it travels.
+        for (i = 0; i < 4; i++) { d = dirs[i]; if (laneClear(r, c, d)) { best = d; break; } }
+        if (best < 0) continue;
+        occ[r + "," + c] = 1;
+        pieces.push({ r: r, c: c, d: best, cells: [[r, c]] });
+        continue;
+      }
       var u = rng(), want;
       if (u < 0.30) want = 1;
       else if (u < 0.74) want = 2 + ((rng() * 3) | 0);
@@ -749,11 +763,14 @@
   function flyOut(id, d) {
     var el = state.els[id]; if (!el) return;
     var t = el.style.transform.match(/-?[\d.]+/g), dr = DIRS[d][0], dc = DIRS[d][1];
-    var x = parseFloat(t[0]) + dc * (state.geo.S + state.geo.gap) * (state.current.level.cols + 2);
-    var y = parseFloat(t[1]) + dr * (state.geo.S + state.geo.gap) * (state.current.level.rows + 2);
+    var step = state.geo.S + state.geo.gap;
+    // Glide the whole piece out, head-first, all the way past the board edge.
+    var reach = Math.max(state.current.level.cols, state.current.level.rows) + 4;
+    var x = parseFloat(t[0]) + dc * step * reach;
+    var y = parseFloat(t[1]) + dr * step * reach;
     el.classList.add("fly"); el.style.transform = "translate(" + x + "px," + y + "px)";
     delete state.els[id];
-    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 380);
+    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 460);
   }
   function shake(id) { var el = state.els[id]; if (!el) return; el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
 
