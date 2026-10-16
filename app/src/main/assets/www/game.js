@@ -804,17 +804,37 @@
     if (a.need > 1) { if (!b) { b = document.createElement("div"); b.className = "need"; el.appendChild(b); } b.textContent = a.need; }
     else if (b) b.parentNode.removeChild(b);
   }
-  function flyOut(id, d) {
-    var el = state.els[id]; if (!el) return;
-    var t = el.style.transform.match(/-?[\d.]+/g), dr = DIRS[d][0], dc = DIRS[d][1];
-    var step = state.geo.S + state.geo.gap;
-    // Glide the whole piece out, head-first, all the way past the board edge.
-    var reach = Math.max(state.current.level.cols, state.current.level.rows) + 4;
-    var x = parseFloat(t[0]) + dc * step * reach;
-    var y = parseFloat(t[1]) + dr * step * reach;
-    el.classList.add("fly"); el.style.transform = "translate(" + x + "px," + y + "px)";
-    delete state.els[id];
-    setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 460);
+  // Exit animation: the piece SLIDES OUT ALONG ITS OWN PATH, head first, with
+  // the tail following that same track (like a snake). Its tail therefore never
+  // sits on, or crosses over, another arrow. Once the body has followed the path
+  // the piece has straightened into its clear exit lane, so it glides away.
+  function flyOut(a) {
+    var el = state.els[a.id]; if (!el) return;
+    delete state.els[a.id];
+    var d = a.d, dr = DIRS[d][0], dc = DIRS[d][1], step = state.geo.S + state.geo.gap;
+    var isLong = !!(a.path && a.path.length);
+    var path = isLong ? a.path.map(function (p) { return { r: p.r, c: p.c }; }) : [{ r: a.r, c: a.c }];
+    var n = path.length, i = 0;
+    function frame() {
+      if (!el.parentNode) return;
+      if (i < n) {
+        var oh = path[path.length - 1];
+        path = path.slice(1);
+        path.push({ r: oh.r + dr, c: oh.c + dc });
+        a.r = oh.r + dr; a.c = oh.c + dc;
+        if (isLong) { a.path = path; el.innerHTML = longArrowInner(a, null); }
+        el.style.transform = "translate(" + cellX(a.c) + "px," + cellY(a.r) + "px)";
+        i++;
+        setTimeout(frame, 26);
+      } else {
+        var reach = Math.max(state.current.level.cols, state.current.level.rows) + 4;
+        var t = el.style.transform.match(/-?[\d.]+/g);
+        el.classList.add("fly");
+        el.style.transform = "translate(" + (parseFloat(t[0]) + dc * step * reach) + "px," + (parseFloat(t[1]) + dr * step * reach) + "px)";
+        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 520);
+      }
+    }
+    frame();
   }
   function shake(id) { var el = state.els[id]; if (!el) return; el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
 
@@ -895,7 +915,7 @@
       state.moves++;
       var bs = new Set(); blockWalls(idx).forEach(function (w) { bs.add(w[0] + "," + w[1]); });
       if (C.classicRayClear(lv.rows, lv.cols, tile.r, tile.c, tile.d, new Set(), bs)) {
-        sfxClear(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d);
+        sfxClear(); state.arrows.splice(idx, 1); flyOut(tile);
       } else {
         tile.d = (tile.d + 1) % 4;
         var rEl = state.els[tile.id];
@@ -912,7 +932,7 @@
     state.moves++;
     if (mech === "escape") {
       var m = C.escapeMoveFor(lv.rows, lv.cols, arr, blockWalls(idx), idx);
-      if (m.exit) { sfxEscape(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d); }
+      if (m.exit) { sfxEscape(); state.arrows.splice(idx, 1); flyOut(tile); }
       else {
         sfxSlide(); tile.r += DIRS[tile.d][0]; tile.c += DIRS[tile.d][1];
         if (tile.path) tile.path.forEach(function (p) { p.r += DIRS[tile.d][0]; p.c += DIRS[tile.d][1]; });
@@ -920,9 +940,9 @@
       }
     } else if (mech === "multi") {
       if (tile.need > 1) { sfxTick(); tile.need -= 1; updateNeed(tile); }
-      else { sfxClear(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d); }
+      else { sfxClear(); state.arrows.splice(idx, 1); flyOut(tile); }
     } else {
-      sfxClear(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d);
+      sfxClear(); state.arrows.splice(idx, 1); flyOut(tile);
       if (modeById(state.current.modeId).bomb && tile.bomb) {
         var nb = [];
         for (var q = 0; q < 4; q++) {
@@ -930,7 +950,7 @@
           var j = state.arrows.findIndex(function (x) { return x.r === br && x.c === bc; });
           if (j >= 0) nb.push(state.arrows[j]);
         }
-        if (nb.length) { sfxEscape(); nb.forEach(function (x) { flyOut(x.id, x.d); }); state.arrows = state.arrows.filter(function (x) { return nb.indexOf(x) < 0; }); }
+        if (nb.length) { sfxEscape(); nb.forEach(function (x) { flyOut(x); }); state.arrows = state.arrows.filter(function (x) { return nb.indexOf(x) < 0; }); }
       }
     }
     if (state.budgetMode && state.moves > state.budget) { updateStats(); state.locked = true; showLose("Out of moves \u2014 replay or head home."); return; }
