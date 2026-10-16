@@ -12,7 +12,7 @@ BT="${ANDROID_BUILD_TOOLS:-$ANDROID_HOME/build-tools/34.0.0}"
 AJAR="$ANDROID_HOME/platforms/android-34/android.jar"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$REPO/build-manual"
-APK_NAME="ArrowPuzzleAdvanced-5.8.apk"
+APK_NAME="ArrowPuzzleAdvanced-5.9.apk"
 rm -rf "$OUT"; mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/dex"
 
 echo "[1/6] aapt2 compile"
@@ -31,7 +31,7 @@ PY
   --manifest "$OUT/AndroidManifest.xml" \
   -A "$REPO/app/src/main/assets" --java "$OUT/gen" \
   --min-sdk-version 24 --target-sdk-version 34 \
-  --version-code 16 --version-name "5.8" "$OUT/res.zip"
+  --version-code 17 --version-name "5.9" "$OUT/res.zip"
 
 echo "[3/6] javac"
 javac -source 17 -target 17 -encoding UTF-8 -nowarn -Xlint:-options \

@@ -20,7 +20,8 @@
     classic: { files: [["levels_classic_1.js", "LEVELS_CLASSIC_1"], ["levels_classic_2.js", "LEVELS_CLASSIC_2"]], size: 6000, sol: false, core: "classic" },
     escape: { files: [["levels_escape_1.js", "LEVELS_ESCAPE_1"], ["levels_escape_2.js", "LEVELS_ESCAPE_2"]], size: 6000, sol: true, core: "escape" },
     multi: { files: [["levels_multi.js", "LEVELS_MULTI"]], size: 3000, sol: true, core: "multi" },
-    mega: { files: [["levels_mega.js", "LEVELS_MEGA"]], size: 24, sol: false, core: "classic" }
+    mega: { files: [["levels_mega.js", "LEVELS_MEGA"]], size: 24, sol: false, core: "classic" },
+    rotate: { files: [["levels_classic_1.js", "LEVELS_CLASSIC_1"], ["levels_classic_2.js", "LEVELS_CLASSIC_2"]], size: 6000, sol: false, core: "classic" }
   };
   function coreOf(mech) { return (MECHANICS[mech] && MECHANICS[mech].core) || mech; }
   // board "auto" = follow the app theme (dark theme -> dark board, white theme ->
@@ -39,7 +40,9 @@
     long: { name: "Long arrows", glyph: "\u27A1", board: "auto", render: "long", color: "auto", pattern: "fine" },
     neon: { name: "Neon arrows", glyph: "\u2B95", board: "dark", render: "borderless", color: "#66e0ff", pattern: "neon" },
     curly: { name: "Curly arrows", glyph: "\u219D", board: "auto", render: "curly", color: "auto", pattern: "swirl" },
-    maze: { name: "Maze arrows", glyph: "\u21B3", board: "light", render: "long", color: "#8a6a4a", pattern: "plain" }
+    maze: { name: "Maze arrows", glyph: "\u21B3", board: "light", render: "long", color: "#8a6a4a", pattern: "plain" },
+    traffic: { name: "Traffic", glyph: "\uD83D\uDE97", board: "auto", render: "tile", pattern: "stripes" },
+    critters: { name: "Critters", glyph: "\uD83D\uDC22", board: "auto", render: "tile", pattern: "dots" }
   };
   var MODES = [
     { id: "classic_arrow", name: "Classic Arrows", mech: "classic", theme: "arrow", desc: "Tap an arrow to launch it off the board when its path is clear." },
@@ -61,7 +64,16 @@
     { id: "mega_curly", name: "Mega Curly", mech: "mega", theme: "curly", desc: "Giant boards with hundreds of long curly arrows." },
     { id: "mega_long", name: "Mega Long", mech: "mega", theme: "long", desc: "Giant boards with hundreds of long arrows." },
     { id: "maze", name: "Maze Arrows", mech: "classic", theme: "maze", desc: "A dense maze of thin long arrows on a warm board." },
-    { id: "maze_escape", name: "Maze Escape", mech: "escape", theme: "maze", desc: "Maze-style long arrows that slide one step per tap." }
+    { id: "maze_escape", name: "Maze Escape", mech: "escape", theme: "maze", desc: "Maze-style long arrows that slide one step per tap." },
+    { id: "zen", name: "Zen Arrows", mech: "classic", theme: "round", zen: true, desc: "No lives, no timer \u2014 clear boards at your own pace." },
+    { id: "timed", name: "Time Attack", mech: "classic", theme: "neon", timed: true, desc: "Beat the clock \u2014 clear the board before time runs out." },
+    { id: "budget", name: "Move Budget", mech: "classic", theme: "square", budget: true, desc: "Clear the board within a limited number of moves." },
+    { id: "bomb", name: "Bomb Arrows", mech: "classic", theme: "square", bomb: true, desc: "Bomb tiles blast their neighbours off when they leave." },
+    { id: "shaped", name: "Shaped Boards", mech: "classic", theme: "long", shaped: true, desc: "Picture-shaped boards built from long arrows." },
+    { id: "endless", name: "Endless Arrows", mech: "classic", theme: "curly", endless: true, desc: "A fresh random board every time you press New." },
+    { id: "rotate", name: "Rotate Out", mech: "rotate", theme: "arrow", desc: "Tap to turn an arrow; it leaves once it points down a clear lane." },
+    { id: "traffic", name: "Traffic Jam", mech: "classic", theme: "traffic", desc: "Cars drive straight out when their lane is clear." },
+    { id: "critters", name: "Critters", mech: "classic", theme: "critters", desc: "Little critters hop out when their path is open." }
   ];
 
   // Hard challenge packs, drawn from the toughest level ranges (all offline).
@@ -419,9 +431,10 @@
   }
   function playLevel(modeId, index, levelsArr, ctx) {
     var m = modeById(modeId), lv = levelsArr[index];
-    if (isLongTheme(m.theme)) lv = pieceLevel(lv, modeId, index);
+    if (isLongTheme(m.theme) || m.shaped) lv = pieceLevel(lv, modeId, index, !!m.shaped);
     state.current = { modeId: modeId, index: index, levelsArr: levelsArr, ctx: ctx, level: lv };
     touchMode(modeId);
+    state.noPressure = !!m.zen; state.timed = !!m.timed; state.budgetMode = !!m.budget; state.rotateMode = (m.mech === "rotate");
     // Each tile gets its own random colour index (independent of its direction).
     var ciRng = mulberry32(hashStr(modeId + ":" + index + ":ci"));
     if (lv.pieces) {
@@ -437,7 +450,18 @@
     state.maxLives = livesForLevel(lv.id || (index + 1)); state.lives = state.maxLives; updateLives();
     state.startTime = Date.now(); resetZoom();
     if (state.timer) clearInterval(state.timer);
-    state.timer = setInterval(function () { var s = Math.round((Date.now() - state.startTime) / 1000); var e = $("stat-time"); if (e) e.textContent = s + "s"; }, 500);
+    state.budget = m.budget ? (state.arrows.length + 3) : 0;
+    state.deadline = m.timed ? (Date.now() + Math.max(120, state.arrows.length * 4) * 1000) : 0;
+    if (m.bomb) { var bR = mulberry32(hashStr(modeId + ":" + index + ":bomb")); state.arrows.forEach(function (a) { a.bomb = bR() < 0.14; }); }
+    state.timer = setInterval(function () {
+      var e = $("stat-time"); if (!e) return;
+      if (state.timed && state.deadline) {
+        var left = Math.max(0, Math.round((state.deadline - Date.now()) / 1000));
+        e.textContent = left + "s";
+        if (left <= 0 && !state.locked) { state.locked = true; showLose("Time up \u2014 replay or head home."); }
+      } else if (state.noPressure) e.textContent = "\u2014";
+      else e.textContent = Math.round((Date.now() - state.startTime) / 1000) + "s";
+    }, 500);
     state.solArr = decodeSol(lv.sol, lv.cols);
     $("game-level").textContent = ctx.type === "campaign" ? "Level " + (index + 1) : "Pack " + (ctx.slot + 1);
     $("game-mode").textContent = m.name + (lv.hard ? " \u00b7 very hard" : "") + (lv.mega ? " \u00b7 mega" : "");
@@ -450,7 +474,7 @@
   function updateStats() {
     var lv = state.current.level;
     $("stat-moves").textContent = state.moves;
-    $("stat-par").textContent = lv.par;
+    $("stat-par").textContent = state.budgetMode ? state.budget : lv.par;
     var s = state.hintsUsed === 0 ? 3 : (state.hintsUsed <= 2 ? 2 : 1);
     $("stat-stars").innerHTML = "\u2605".repeat(s) + "\u2606".repeat(3 - s);
   }
@@ -488,6 +512,7 @@
     } else if (themeId === "fruits") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + FRUIT[gi] + "</div>" + cue;
     else if (themeId === "picture") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + PIC[gi] + "</div>" + cue;
     else if (themeId === "dotted") html = "<div class='body' style='--c:" + c + "'></div>" + cue;
+    else if (themeId === "traffic" || themeId === "critters") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + (THEMES[themeId].glyph || "") + "</div>" + cue;
     else html = "<div class='body' style='background:" + c + "'></div>" + cue;
     if (need && need > 1) html += "<div class='need'>" + need + "</div>";
     return html;
@@ -506,6 +531,7 @@
     board.style.backgroundImage = ""; board.style.backgroundSize = ""; board.style.backgroundPosition = "";
     if (R * Cc <= 1200) {
       for (var r = 0; r < R; r++) for (var c = 0; c < Cc; c++) {
+        if (lv.mask && !lv.mask[r + "," + c]) continue;
         var cell = document.createElement("div"); cell.className = "cellbg";
         cell.style.width = cell.style.height = state.geo.S + "px";
         cell.style.left = cellX(c) + "px"; cell.style.top = cellY(r) + "px"; board.appendChild(cell);
@@ -564,9 +590,9 @@
      a piece is only placed when the straight lane from its head to the edge is
      clear of everything placed before it, so the reverse placement order is a
      guaranteed solution. Lengths are mixed (short / medium / long). */
-  function genPieces(R, C, count, maxLen, rng) {
+  function genPieces(R, C, count, maxLen, rng, mask) {
     var occ = {}, pieces = [];
-    function free(r, c) { return r >= 0 && r < R && c >= 0 && c < C && !occ[r + "," + c]; }
+    function free(r, c) { return r >= 0 && r < R && c >= 0 && c < C && !occ[r + "," + c] && (!mask || mask[r + "," + c]); }
     function laneClear(r, c, d) {
       var dr = DIRS[d][0], dc = DIRS[d][1], rr = r + dr, cc = c + dc;
       while (rr >= 0 && rr < R && cc >= 0 && cc < C) { if (occ[rr + "," + cc]) return false; rr += dr; cc += dc; }
@@ -617,14 +643,31 @@
     }
     return pieces;
   }
-  function pieceLevel(lv, modeId, index) {
+  var SHAPES = ["diamond", "circle", "heart", "plus", "star", "ring"];
+  function shapeMask(kind, R, C) {
+    var m = {};
+    for (var r = 0; r < R; r++) for (var c = 0; c < C; c++) {
+      var x = (c + 0.5) / C * 2 - 1, y = (r + 0.5) / R * 2 - 1, inside = true;
+      if (kind === "diamond") inside = Math.abs(x) + Math.abs(y) <= 1.02;
+      else if (kind === "circle") inside = (x * x + y * y) <= 1.0;
+      else if (kind === "heart") { var yy = -y, t = x * x + yy * yy - 0.55; inside = (t * t * t - x * x * yy * yy * yy) <= 0; }
+      else if (kind === "plus") inside = (Math.abs(x) < 0.44 || Math.abs(y) < 0.44);
+      else if (kind === "star") { var a = Math.atan2(y, x), rad = Math.hypot(x, y); inside = rad <= 0.55 + 0.42 * Math.abs(Math.cos(2.5 * a)); }
+      else if (kind === "ring") { var rad2 = Math.hypot(x, y); inside = rad2 <= 1.0 && rad2 >= 0.5; }
+      if (inside) m[r + "," + c] = 1;
+    }
+    return m;
+  }
+  function pieceLevel(lv, modeId, index, shaped) {
     var N = Math.max(4, (lv.arrows || []).length);
     var id = lv.id || (index + 1);
     var maxLen = Math.max(6, Math.min(14, 6 + Math.floor(id / 40)));
     var side = Math.max(6, Math.min(64, Math.ceil(Math.sqrt(N * 3.2))));
-    var rng = mulberry32(hashStr(modeId + ":" + id));
-    var pieces = genPieces(side, side, N, maxLen, rng);
-    return { rows: side, cols: side, walls: [], par: pieces.length, id: id, hard: lv.hard, mega: lv.mega, pieces: pieces };
+    var salt = state.endlessSeed || 0;
+    var rng = mulberry32(hashStr(modeId + ":" + id + ":" + salt));
+    var mask = shaped ? shapeMask(SHAPES[(id + salt) % SHAPES.length], side, side) : null;
+    var pieces = genPieces(side, side, N, maxLen, rng, mask);
+    return { rows: side, cols: side, walls: [], par: pieces.length, id: id, hard: lv.hard, mega: lv.mega, pieces: pieces, mask: mask };
   }
   function arrowSpanCells(lv, occ, r, c, d) {
     var dr = DIRS[d][0], dc = DIRS[d][1], L = 1, rr = r + dr, cc = c + dc;
@@ -746,6 +789,7 @@
     el.style.width = el.style.height = state.geo.S + "px";
     el.style.transform = "translate(" + cellX(a.c) + "px," + cellY(a.r) + "px)";
     el.innerHTML = isLongTheme(theme) ? longArrowInner(a, state.occ || buildOcc()) : tileInner(theme, a.d, a.need, a.ci);
+    if (a.bomb) { var bmk = document.createElement("div"); bmk.className = "bombmark"; bmk.textContent = "\uD83D\uDCA3"; el.appendChild(bmk); }
     el.addEventListener("pointerdown", function () { startHold(a.id); });
     el.addEventListener("pointerup", endHold);
     el.addEventListener("pointercancel", endHold);
@@ -828,8 +872,7 @@
     updateLives();
     if (state.lives <= 0) {
       state.locked = true;
-      var lo = $("lose");
-      if (lo) lo.classList.add("show"); else { toast("Out of lives \u2014 replaying this level"); setTimeout(function () { restart(); }, 850); }
+      showLose("Out of lives \u2014 replay this level or head home.");
     } else {
       toast(state.lives + (state.lives === 1 ? " life left" : " lives left"));
     }
@@ -845,6 +888,24 @@
     var arr = state.arrows.map(function (a) { return [a.r, a.c, a.d, a.need]; });
     var tile = state.arrows[idx];
     var lv0r = tile.r, lv0c = tile.c;
+    if (state.rotateMode) {
+      // Rotate Out: a tap turns the arrow 90 deg; it leaves the moment it
+      // points down a clear lane.
+      state.history.push(snapshot());
+      state.moves++;
+      var bs = new Set(); blockWalls(idx).forEach(function (w) { bs.add(w[0] + "," + w[1]); });
+      if (C.classicRayClear(lv.rows, lv.cols, tile.r, tile.c, tile.d, new Set(), bs)) {
+        sfxClear(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d);
+      } else {
+        tile.d = (tile.d + 1) % 4;
+        var rEl = state.els[tile.id];
+        if (rEl) rEl.innerHTML = tileInner(modeById(state.current.modeId).theme, tile.d, tile.need, tile.ci);
+        sfxTick();
+      }
+      updateStats();
+      if (state.arrows.length === 0) setTimeout(winLevel, 430);
+      return;
+    }
     var res = C.applyMove(mech, lv.rows, lv.cols, arr, blockWalls(idx), idx);
     if (!res) { sfxWrong(); loseLife(id); return; }
     state.history.push(snapshot());
@@ -862,7 +923,17 @@
       else { sfxClear(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d); }
     } else {
       sfxClear(); state.arrows.splice(idx, 1); flyOut(tile.id, tile.d);
+      if (modeById(state.current.modeId).bomb && tile.bomb) {
+        var nb = [];
+        for (var q = 0; q < 4; q++) {
+          var br = tile.r + DIRS[q][0], bc = tile.c + DIRS[q][1];
+          var j = state.arrows.findIndex(function (x) { return x.r === br && x.c === bc; });
+          if (j >= 0) nb.push(state.arrows[j]);
+        }
+        if (nb.length) { sfxEscape(); nb.forEach(function (x) { flyOut(x.id, x.d); }); state.arrows = state.arrows.filter(function (x) { return nb.indexOf(x) < 0; }); }
+      }
     }
+    if (state.budgetMode && state.moves > state.budget) { updateStats(); state.locked = true; showLose("Out of moves \u2014 replay or head home."); return; }
     updateStats();
     if (state.arrows.length === 0) setTimeout(winLevel, 430);
   }
@@ -877,7 +948,15 @@
     state.arrows = s.arrows; state.moves = s.moves; state.hintsUsed = s.hintsUsed; state.nextId = s.nextId;
     rebuildArrows(); updateStats();
   }
-  function restart() { if (state.current) playLevel(state.current.modeId, state.current.index, state.current.levelsArr, state.current.ctx); }
+  function restart() {
+    if (!state.current) return;
+    if (modeById(state.current.modeId).endless) state.endlessSeed = (state.endlessSeed || 0) + 1 + Math.floor(Math.random() * 997);
+    playLevel(state.current.modeId, state.current.index, state.current.levelsArr, state.current.ctx);
+  }
+  function showLose(msg) {
+    var sub = $("lose-sub"); if (sub && msg) sub.textContent = msg;
+    var lo = $("lose"); if (lo) lo.classList.add("show");
+  }
 
   function winLevel() {
     var cur = state.current, lv = cur.level, id = cur.index + 1;
