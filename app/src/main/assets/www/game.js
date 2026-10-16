@@ -107,8 +107,14 @@
              online: { packs: {}, checked: null }, coins: 0, challenges: {}, modeMeta: {},
              settings: { theme: "dark", sound: true, lives: true, autoArchive: true } };
   }
+  // Progress is kept in BOTH the native app file (survives app updates) and
+  // localStorage (survives in the browser / web build). Whichever has data wins.
+  function storedRaw() {
+    try { if (window.Android && Android.loadProgress) { var s = Android.loadProgress(); if (s && s.length > 2) return s; } } catch (e) {}
+    try { return localStorage.getItem("apa_progress_v2"); } catch (e) { return null; }
+  }
   function loadProgress() {
-    try { var raw = localStorage.getItem("apa_progress_v2");
+    try { var raw = storedRaw();
       if (raw) { var p = JSON.parse(raw);
         if (p && p.modes) {
           if (p.coins == null) p.coins = 0; if (!p.challenges) p.challenges = {};
@@ -119,7 +125,12 @@
           return p; } } } catch (e) {}
     return blankProgress();
   }
-  function saveProgress() { try { localStorage.setItem("apa_progress_v2", JSON.stringify(state.progress)); } catch (e) { toast("Storage full"); } }
+  function saveProgress() {
+    var json = JSON.stringify(state.progress), ok = false;
+    try { localStorage.setItem("apa_progress_v2", json); ok = true; } catch (e) {}
+    try { if (window.Android && Android.saveProgress) { Android.saveProgress(json); ok = true; } } catch (e) {}
+    if (!ok) toast("Storage full");
+  }
   function modeProg(id) { return state.progress.modes[id] || (state.progress.modes[id] = { unlocked: 1, stars: {} }); }
   /* ---------- mode archive ---------- */
   function modeMeta(id) { return state.progress.modeMeta[id] || (state.progress.modeMeta[id] = { last: null, hidden: false, plays: 0, fav: false }); }
@@ -411,10 +422,12 @@
     if (isLongTheme(m.theme)) lv = pieceLevel(lv, modeId, index);
     state.current = { modeId: modeId, index: index, levelsArr: levelsArr, ctx: ctx, level: lv };
     touchMode(modeId);
+    // Each tile gets its own random colour index (independent of its direction).
+    var ciRng = mulberry32(hashStr(modeId + ":" + index + ":ci"));
     if (lv.pieces) {
-      state.arrows = lv.pieces.map(function (p, i) { return { id: i + 1, r: p.r, c: p.c, d: p.d, need: 1, path: p.cells.map(function (q) { return { r: q[0], c: q[1] }; }) }; });
+      state.arrows = lv.pieces.map(function (p, i) { return { id: i + 1, r: p.r, c: p.c, d: p.d, need: 1, ci: Math.floor(ciRng() * 8), path: p.cells.map(function (q) { return { r: q[0], c: q[1] }; }) }; });
     } else {
-      state.arrows = lv.arrows.map(function (a, i) { return { id: i + 1, r: a[0], c: a[1], d: a[2], need: a.length > 3 ? a[3] : 1 }; });
+      state.arrows = lv.arrows.map(function (a, i) { return { id: i + 1, r: a[0], c: a[1], d: a[2], need: a.length > 3 ? a[3] : 1, ci: Math.floor(ciRng() * 8) }; });
     }
     state.nextId = state.arrows.length + 1;
     state.history = []; state.moves = 0; state.hintsUsed = 0; state.locked = false;
@@ -453,8 +466,10 @@
   // Arrow glyph colour follows the app theme: dark theme -> white, white theme -> dark.
   function arrowColor(th) { return (th.color && th.color !== "auto") ? th.color : (resolvedTheme() === "light" ? "#14181f" : "#f3f6fb"); }
   function cueFill() { return resolvedTheme() === "light" ? "rgba(16,20,28,.85)" : "rgba(250,252,255,.94)"; }
-  function tileInner(themeId, d, need) {
-    var th = THEMES[themeId] || THEMES.arrow, c = DIR_COLOR[d], ang = DIR_ANGLE[d], ac = arrowColor(th), cf = cueFill();
+  function tileInner(themeId, d, need, ci) {
+    // The tile COLOUR comes from the tile's own random index (ci), not from its
+    // direction, so colour and direction are independent.
+    var th = THEMES[themeId] || THEMES.arrow, gi = (ci == null ? d : ci), c = DIR_COLOR[gi], ang = DIR_ANGLE[d], ac = arrowColor(th), cf = cueFill();
     var cue = "<svg class='cue' viewBox='0 0 24 24' style='transform:rotate(" + ang + "deg)'><path d='M12 2.4 L22 14.2 L15.4 14.2 L15.4 21.6 L8.6 21.6 L8.6 14.2 L2 14.2 Z' fill='" + cf + "'/></svg>";
     var html;
     if (th.render === "borderless") {
@@ -467,8 +482,8 @@
       html = "<svg class='glong' viewBox='0 0 24 24' style='transform:rotate(" + ang + "deg)'>" +
         "<path d='M12 22.6 C 4 21 4 13.6 12 13.4 C 19.6 13.2 19.6 7.6 12.4 7.8' fill='none' stroke='" + ac + "' stroke-width='2.7' stroke-linecap='round'/>" +
         "<path d='M12.6 1.2 L18.8 9.8 L6.4 9.8 Z' fill='" + ac + "'/></svg>";
-    } else if (themeId === "fruits") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + FRUIT[d] + "</div>" + cue;
-    else if (themeId === "picture") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + PIC[d] + "</div>" + cue;
+    } else if (themeId === "fruits") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + FRUIT[gi] + "</div>" + cue;
+    else if (themeId === "picture") html = "<div class='body' style='--c:" + c + "'></div><div class='glyph'>" + PIC[gi] + "</div>" + cue;
     else if (themeId === "dotted") html = "<div class='body' style='--c:" + c + "'></div>" + cue;
     else html = "<div class='body' style='background:" + c + "'></div>" + cue;
     if (need && need > 1) html += "<div class='need'>" + need + "</div>";
@@ -716,7 +731,7 @@
     el.className = "arrow th-" + theme;
     el.style.width = el.style.height = state.geo.S + "px";
     el.style.transform = "translate(" + cellX(a.c) + "px," + cellY(a.r) + "px)";
-    el.innerHTML = isLongTheme(theme) ? longArrowInner(a, state.occ || buildOcc()) : tileInner(theme, a.d, a.need);
+    el.innerHTML = isLongTheme(theme) ? longArrowInner(a, state.occ || buildOcc()) : tileInner(theme, a.d, a.need, a.ci);
     el.addEventListener("pointerdown", function () { startHold(a.id); });
     el.addEventListener("pointerup", endHold);
     el.addEventListener("pointercancel", endHold);
@@ -803,7 +818,7 @@
     }
   }
 
-  function snapshot() { return { arrows: state.arrows.map(function (a) { return { id: a.id, r: a.r, c: a.c, d: a.d, need: a.need, len: a.len, path: a.path }; }), moves: state.moves, hintsUsed: state.hintsUsed, nextId: state.nextId }; }
+  function snapshot() { return { arrows: state.arrows.map(function (a) { return { id: a.id, r: a.r, c: a.c, d: a.d, need: a.need, len: a.len, ci: a.ci, path: a.path }; }), moves: state.moves, hintsUsed: state.hintsUsed, nextId: state.nextId }; }
 
   function onTap(id) {
     if (state.locked || state.swallow) return;

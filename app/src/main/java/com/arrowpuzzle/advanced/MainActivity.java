@@ -74,6 +74,37 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        /** Progress + coins are mirrored to a private app file, so they survive
+         *  app updates (WebView localStorage alone is not reliable for that). */
+        @JavascriptInterface
+        public String loadProgress() {
+            try {
+                java.io.File f = new java.io.File(getFilesDir(), "apa_progress.json");
+                if (!f.exists()) return "";
+                java.io.FileInputStream in = new java.io.FileInputStream(f);
+                byte[] buf = new byte[(int) f.length()];
+                int n = in.read(buf);
+                in.close();
+                return new String(buf, 0, Math.max(0, n), "UTF-8");
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        @JavascriptInterface
+        public void saveProgress(final String json) {
+            if (json == null) return;
+            try {
+                java.io.File tmp = new java.io.File(getFilesDir(), "apa_progress.json.tmp");
+                java.io.FileOutputStream out = new java.io.FileOutputStream(tmp);
+                out.write(json.getBytes("UTF-8"));
+                out.close();
+                java.io.File f = new java.io.File(getFilesDir(), "apa_progress.json");
+                if (f.exists()) f.delete();
+                tmp.renameTo(f);
+            } catch (Exception e) { }
+        }
     }
 
     private long lastBack = 0;
