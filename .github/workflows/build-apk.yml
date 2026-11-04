@@ -61,4 +61,4 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: build-manual/*.apk
+          files: build-manual/ArrowPuzzleAdvanced-*.apk
