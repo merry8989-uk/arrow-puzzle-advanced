@@ -12,7 +12,9 @@ BT="${ANDROID_BUILD_TOOLS:-$ANDROID_HOME/build-tools/34.0.0}"
 AJAR="$ANDROID_HOME/platforms/android-34/android.jar"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$REPO/build-manual"
-APK_NAME="ArrowPuzzleAdvanced-5.11.apk"
+VERSION_NAME="${APA_VERSION_NAME:-5.13}"
+VERSION_CODE="${APA_VERSION_CODE:-21}"
+APK_NAME="ArrowPuzzleAdvanced-${VERSION_NAME}.apk"
 rm -rf "$OUT"; mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/dex"
 
 echo "[1/6] aapt2 compile"
@@ -31,7 +33,7 @@ PY
   --manifest "$OUT/AndroidManifest.xml" \
   -A "$REPO/app/src/main/assets" --java "$OUT/gen" \
   --min-sdk-version 24 --target-sdk-version 34 \
-  --version-code 19 --version-name "5.11" "$OUT/res.zip"
+  --version-code "$VERSION_CODE" --version-name "$VERSION_NAME" "$OUT/res.zip"
 
 echo "[3/6] javac"
 javac -source 17 -target 17 -encoding UTF-8 -nowarn -Xlint:-options \
@@ -52,12 +54,20 @@ PY
 echo "[6/6] zipalign + sign"
 "$BT/zipalign" -f -p 4 "$OUT/base.apk" "$OUT/aligned.apk"
 KS="${APA_KEYSTORE:-$OUT/apa-release.jks}"
+KS_PASS="${APA_KEYSTORE_PASSWORD:-android}"
+KEY_ALIAS="${APA_KEY_ALIAS:-apa}"
+KEY_PASS="${APA_KEY_PASSWORD:-android}"
+if [ ! -f "$KS" ] && [ -n "${APA_KEYSTORE_BASE64:-}" ]; then
+  printf '%s' "$APA_KEYSTORE_BASE64" | base64 -d > "$KS"
+  echo "Decoded release keystore from APA_KEYSTORE_BASE64"
+fi
 if [ ! -f "$KS" ]; then
-  keytool -genkeypair -keystore "$KS" -alias apa -keyalg RSA -keysize 2048 \
-    -validity 10000 -storepass android -keypass android \
+  keytool -genkeypair -keystore "$KS" -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 \
+    -validity 10000 -storepass "$KS_PASS" -keypass "$KEY_PASS" \
     -dname "CN=Arrow Puzzle Advanced,O=Arrow Puzzle Advanced,C=IN"
 fi
-"$BT/apksigner" sign --ks "$KS" --ks-pass pass:android --key-pass pass:android \
+"$BT/apksigner" sign --ks "$KS" --ks-key-alias "$KEY_ALIAS" \
+  --ks-pass "pass:$KS_PASS" --key-pass "pass:$KEY_PASS" \
   --out "$OUT/$APK_NAME" "$OUT/aligned.apk"
 "$BT/apksigner" verify "$OUT/$APK_NAME"
 echo "Built: $OUT/$APK_NAME"
